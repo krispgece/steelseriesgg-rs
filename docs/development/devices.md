@@ -206,9 +206,11 @@ scope belongs to this family in the fork; none was dropped.
   receiver PID sets bit `0x40` on every opcode and answers each setting with a 64-byte report that is read and
   dropped. Commands are spaced 50 ms apart.
 - DPI: `00 2D 01 <preset> <code>`; the Rival 3 Gen 2 uses opcode `34` and sends the code once per axis. Preset
-  index is 1 on Aerox 3 and Rival 3 Gen 2, 0 elsewhere. Ranges: 200-8500 (Aerox 3, Rival 3 Gen 2, TrueMove Core
-  table), 100-18000 in steps of 100 (all others, TrueMove Air table), Prime Mini 50-18000 in steps of 50 with a
-  16-bit little-endian code `dpi / 50`. Off-step and out-of-range values are rejected.
+  index is 1 on Aerox 3, 0 elsewhere; the Rival 3 Gen 2 takes it 0-based per rivalcfg PR #292 (merged 2026-10-07;
+  its author's wired `0x1870` under macOS ignored `34 01 01 08 08` and applied `34 01 00 12 12`), where the fork
+  had 1. Ranges: 200-8500 (Aerox 3, Rival 3 Gen 2, TrueMove Core table), 100-18000 in steps of 100 (all others,
+  TrueMove Air table), Prime Mini 50-18000 in steps of 50 with a 16-bit little-endian code `dpi / 50`. Off-step
+  and out-of-range values are rejected.
 - Polling rate: `00 2B <code>`; 125/250/500/1000 Hz is `04 03 02 01` on wired-only models and Rival 5 / Prime
   Mini, `03 02 01 00` on the wireless models.
 - Colour: `00 21 <selector> ... <r g b>` once per LED zone. Aerox 3/5 and Rival 3 Gen 2 (3 zones): selector is a

@@ -100,9 +100,13 @@ const SPEC_AEROX_3: MouseSpec = MouseSpec {
     battery: false,
 };
 
+/// The preset index is 0-based on this model, unlike the Aerox 3 it shares the sensor table with: rivalcfg PR #292
+/// (merged 2026-10-07), tested by its author on a wired `0x1870` (macOS), where `34 01 01 08 08` was ignored and
+/// `34 01 00 12 12` applied.
 const SPEC_RIVAL_3_GEN_2: MouseSpec = MouseSpec {
     dpi: DpiSpec {
         opcode: MouseDpiCommand::OPCODE_RIVAL_3_GEN_2,
+        first_preset: 0,
         per_axis: true,
         ..SPEC_AEROX_3.dpi
     },
@@ -565,9 +569,17 @@ mod tests {
 
     #[test]
     fn rival_3_gen_2_uses_its_own_opcode_and_repeats_the_code_per_axis() {
-        assert_eq!(dpi(RIVAL_3_GEN_2, 200), [0x00, 0x34, 0x01, 0x01, 0x04, 0x04]);
-        assert_eq!(dpi(RIVAL_3_GEN_2, 1600), [0x00, 0x34, 0x01, 0x01, 0x24, 0x24]);
-        assert_eq!(dpi(RIVAL_3_GEN_2, 8500), [0x00, 0x34, 0x01, 0x01, 0xC5, 0xC5]);
+        assert_eq!(dpi(RIVAL_3_GEN_2, 200), [0x00, 0x34, 0x01, 0x00, 0x04, 0x04]);
+        assert_eq!(dpi(RIVAL_3_GEN_2, 1600), [0x00, 0x34, 0x01, 0x00, 0x24, 0x24]);
+        assert_eq!(dpi(RIVAL_3_GEN_2, 8500), [0x00, 0x34, 0x01, 0x00, 0xC5, 0xC5]);
+    }
+
+    /// rivalcfg PR #292: `34 01 00 12 12` is the frame that applied 800 DPI on a wired `0x1870`, where the 1-based
+    /// `34 01 01 ..` was ignored. The Aerox 3 keeps rivalcfg's 1-based preset.
+    #[test]
+    fn rival_3_gen_2_selects_its_presets_0_based() {
+        assert_eq!(dpi(RIVAL_3_GEN_2, 800), [0x00, 0x34, 0x01, 0x00, 0x12, 0x12]);
+        assert_eq!(dpi(AEROX_3, 800), [0x00, 0x2D, 0x01, 0x01, 0x12]);
     }
 
     #[test]
