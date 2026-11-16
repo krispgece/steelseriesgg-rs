@@ -1301,6 +1301,14 @@ mod tests {
         assert_eq!(reports.reads, 2, "the wait for an AB report ends at the first timeout");
         assert_eq!(model.decode_poll_rate_reply(&reply), None);
 
+        let mut chatter = Reports::new(vec![captured_echo(0x21); 20]);
+        assert_eq!(
+            await_reply_or_first(|buffer| chatter.read(buffer), 0xAB).unwrap(),
+            Some(captured_echo(0x21)),
+            "the first report comes back when none starts with AB"
+        );
+        assert_eq!(chatter.reads, REPLY_READS, "the reads are bounded");
+
         let mut silent = Reports::new(vec![]);
         assert_eq!(await_reply_or_first(|buffer| silent.read(buffer), 0xAB).unwrap(), None);
         assert_eq!(silent.reads, 1);
