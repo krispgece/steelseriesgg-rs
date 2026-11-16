@@ -139,10 +139,11 @@ pub enum CommandCode {
     /// is 0x2D on every model but the Rival 3 Gen 2 (0x34), and 0x2D already belongs to
     /// [`CommandCode::ActuationControl`]. From a community rivalcfg-derived fork, untested on hardware.
     MouseDpi = 0xF2,
-    /// [EXPERIMENTAL] Modern-family mouse LED colour, see [`MouseColorCommand`]. A tag, never a wire byte: the
+    /// Modern-family mouse LED colour, see [`MouseColorCommand`]. A tag, never a wire byte: the
     /// wire opcode is 0x21 (0x61 on a 2.4 GHz receiver PID), which belong to
     /// [`CommandCode::RgbControl`] and [`CommandCode::Apex2023DirectWireless`]. From a community
-    /// rivalcfg-derived fork, untested on hardware.
+    /// rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, 2026-11-16) for one colour on all
+    /// three zones; [EXPERIMENTAL] for a colour per zone and on every other PID.
     MouseColor = 0xF3,
     /// [EXPERIMENTAL] Modern-family mouse DPI stages, see [`MouseDpiStagesCommand`]. A tag, never a wire byte: the
     /// wire opcode is the model's DPI opcode (0x34 on the Rival 3 Gen 2, the only model it is built for), which
@@ -2751,9 +2752,10 @@ pub enum MouseColorLayout {
     Single,
 }
 
-/// [EXPERIMENTAL] Modern-family mouse LED colour for one zone, in the [`MouseColorLayout`] of the model. A
-/// 2.4 GHz receiver PID sets [`MOUSE_DONGLE_FLAG`] on the opcode. Source: community rivalcfg-derived fork,
-/// never sent from `ssgg` on hardware.
+/// Modern-family mouse LED colour for one zone, in the [`MouseColorLayout`] of the model. A
+/// 2.4 GHz receiver PID sets [`MOUSE_DONGLE_FLAG`] on the opcode. Source: community rivalcfg-derived fork.
+/// Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, 2026-11-16) with the same colour sent to all three zones;
+/// [EXPERIMENTAL] for a colour per zone and on every other PID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseColorCommand {
     pub layout: MouseColorLayout,

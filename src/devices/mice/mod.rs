@@ -2,7 +2,8 @@
 //!
 //! Only the Modern family of the community rivalcfg project is covered (see [`modern`]). Prime and Prime+,
 //! the older Rival, Sensei and Kana families and the older wireless families use other command sets and are
-//! not implemented. No mouse command has been run on hardware.
+//! not implemented. Only the colour command has been run on hardware: one colour on all three zones of a wired
+//! Rival 3 Gen 2 (owner, 2026-11-16).
 
 pub mod dpi_tables;
 pub mod modern;

@@ -1,6 +1,7 @@
 //! [EXPERIMENTAL] Modern-family SteelSeries mice: Aerox 3/5/9, Prime Mini, Prime Wireless, Rival 3 Gen 2, Rival 5.
 //!
-//! The whole protocol comes from a community fork derived from rivalcfg and has not been run on hardware.
+//! The whole protocol comes from a community fork derived from rivalcfg. Only the colour frames have been run on
+//! hardware: one colour on all three zones of a wired Rival 3 Gen 2 (owner, 2026-11-16).
 //! Commands are output reports `00 <opcode> <args>` of variable length on the model's control interface.
 //! The 2.4 GHz receiver PID of a wireless mouse sets bit 0x40 on every opcode and answers each setting with
 //! a 64-byte report that is read and dropped. The save command `11 00` (write to on-board memory) is never
@@ -481,7 +482,7 @@ pub fn reply_body(report: &[u8], opcode: u8) -> Option<&[u8]> {
 
 /// [EXPERIMENTAL] Read reports through `read` until one answers `opcode`, the wire opcode of the frame just sent,
 /// and return it from the opcode on ([`reply_body`]). A report that answers something else, such as an echo left
-/// from an earlier frame, is skipped. At most [`REPLY_READS`] reports are read, and a read that times out
+/// from an earlier frame, is skipped. At most `REPLY_READS` (8) reports are read, and a read that times out
 /// (returns 0 bytes) ends the wait: `Ok(None)` then, a clear "no reply" and not an error. `read` fills its buffer
 /// with one report and returns its length, like `HidDevice::read_timeout`.
 pub fn await_reply(mut read: impl FnMut(&mut [u8]) -> Result<usize>, opcode: u8) -> Result<Option<Vec<u8>>> {
