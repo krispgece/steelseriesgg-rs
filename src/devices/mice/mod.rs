@@ -39,7 +39,9 @@ pub struct PollRateReadback {
 /// Trait for mouse-specific functionality. Every setting here is applied to the running mouse only; nothing
 /// is saved to its on-board memory.
 pub trait Mouse: Device {
-    /// Set the DPI of the active stage. Rejects a value outside the model's range or between its steps.
+    /// Set the DPI as a single stage. The frame carries a stage count of 1, so in rivalcfg's frame format it replaces
+    /// any stages set before with [`Self::set_dpi_stages`] (unverified on hardware). Rejects a value outside the
+    /// model's range or between its steps.
     fn set_dpi(&mut self, dpi: u16) -> Result<()>;
 
     /// [EXPERIMENTAL] Set 1 to 5 DPI stages, the ones the mouse's DPI button cycles through, and make stage `active`

@@ -483,7 +483,7 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
     println!("Using mouse: {}", mouse_info.name);
     eprintln!(
         "{}",
-        "[EXPERIMENTAL] Mouse commands come from a community rivalcfg-derived fork and are untested on hardware. Settings apply to the running mouse and are not saved to its memory."
+        "[EXPERIMENTAL] Mouse commands come from a community rivalcfg-derived fork; only one colour on all zones of a wired Rival 3 Gen 2 (0x1870) is confirmed on hardware. Settings apply to the running mouse and are not saved to its memory."
             .yellow()
     );
     warn_if_gg_engine_running();

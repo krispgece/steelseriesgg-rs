@@ -69,7 +69,8 @@ pub(crate) enum Commands {
         action: HeadsetAction,
     },
 
-    /// Control Modern-family mice: Aerox, Prime Mini/Wireless, Rival 3 Gen 2, Rival 5 (EXPERIMENTAL and untested on hardware)
+    /// Control Modern-family mice: Aerox, Prime Mini/Wireless, Rival 3 Gen 2, Rival 5 (EXPERIMENTAL; only one colour
+    /// on all zones of a wired Rival 3 Gen 2 is hardware-confirmed)
     Mouse {
         #[command(subcommand)]
         action: MouseAction,
@@ -790,9 +791,10 @@ pub(crate) enum MouseAction {
     Status,
 
     /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (range and step depend on the model, e.g. 100
-    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only)
+    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, EXPERIMENTAL)
     Dpi {
-        /// DPI value, or one value per stage (at most 5)
+        /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which replaces any
+        /// stages set before
         #[arg(value_name = "DPI", required = true, num_args = 1..=5)]
         values: Vec<u16>,
 
@@ -807,13 +809,13 @@ pub(crate) enum MouseAction {
         hz: u16,
     },
 
-    /// Set every LED zone, or one with --zone, to one colour
+    /// Set every LED zone, or one with --zone (EXPERIMENTAL), to one colour
     Color {
         /// Colour name or hex (e.g. red, FF8800)
         color: String,
 
-        /// Only this LED zone, 1-based up to the model's zone count (Rival 3 Gen 2: 1 to 3, which rivalcfg names top,
-        /// middle and bottom)
+        /// Only this LED zone (EXPERIMENTAL, untested on hardware), 1-based up to the model's zone count (Rival 3
+        /// Gen 2: 1 to 3, which rivalcfg names top, middle and bottom)
         #[arg(long, value_name = "N")]
         zone: Option<u8>,
     },
