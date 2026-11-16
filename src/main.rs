@@ -10,7 +10,7 @@ use clap::Parser;
 
 use crate::cli::{
     Cli, Commands, HeadsetAction, MouseAction, PerKeyAction, PollrateAction, ProfileAction, RemapAction, RgbAction,
-    active_stage_index, parse_key_name, require_color,
+    active_stage_index, parse_key_name, require_color, zone_index,
 };
 use crate::commands::{
     cmd_actuation, cmd_bug_report, cmd_device, cmd_hid_logs, cmd_keymap, cmd_oled, cmd_onboard, cmd_performance,
@@ -24,6 +24,7 @@ use steelseries_gg::config::Config;
 use steelseries_gg::device_state::{DeviceId, DeviceStateStore, KeyboardState};
 use steelseries_gg::devices::headsets::nova7::HARDWARE_CONFIRMED;
 use steelseries_gg::devices::keyboards::Keyboard;
+use steelseries_gg::devices::mice::modern::model_for as mouse_model;
 use steelseries_gg::devices::{
     DeviceInfo, DeviceManager, DeviceType, KeyAddress, KeyId,
     diagnostics::{init_global_diagnostics, with_global_diagnostics},
@@ -510,9 +511,17 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
             mouse.set_poll_rate(hz)?;
             println!("Polling rate request sent ({} Hz).", hz);
         }
-        MouseAction::Color { color } => {
+        MouseAction::Color { color, zone: None } => {
             mouse.set_color(require_color(&color)?)?;
             println!("Colour request sent ({}).", color);
+        }
+        MouseAction::Color {
+            color,
+            zone: Some(zone),
+        } => {
+            let zones = mouse_model(mouse_info.product_id).map_or(0, |model| model.spec.zone_count);
+            mouse.set_zone_color(zone_index(zone, zones)?, require_color(&color)?)?;
+            println!("Colour request sent for zone {zone} of {zones} ({color}).");
         }
     }
 

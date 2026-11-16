@@ -807,10 +807,15 @@ pub(crate) enum MouseAction {
         hz: u16,
     },
 
-    /// Set every LED zone to one colour
+    /// Set every LED zone, or one with --zone, to one colour
     Color {
         /// Colour name or hex (e.g. red, FF8800)
         color: String,
+
+        /// Only this LED zone, 1-based up to the model's zone count (Rival 3 Gen 2: 1 to 3, which rivalcfg names top,
+        /// middle and bottom)
+        #[arg(long, value_name = "N")]
+        zone: Option<u8>,
     },
 }
 
@@ -1171,6 +1176,16 @@ pub(crate) fn active_stage_index(active: u8, count: usize) -> Result<u8> {
     Ok(active - 1)
 }
 
+/// The 0-based LED zone of `ssgg mouse color --zone` (1-based) on a mouse with `zone_count` zones.
+pub(crate) fn zone_index(zone: u8, zone_count: u8) -> Result<u8> {
+    if zone == 0 || zone > zone_count {
+        return Err(Error::InvalidConfig(format!(
+            "--zone {zone} is out of range: this mouse has {zone_count} LED zone(s), so 1 to {zone_count}"
+        )));
+    }
+    Ok(zone - 1)
+}
+
 pub(crate) fn parse_color(s: &str) -> Option<Color> {
     Color::parse(s)
 }
@@ -1464,6 +1479,34 @@ mod tests {
             assert!(
                 matches!(active_stage_index(active, count), Err(Error::InvalidConfig(_))),
                 "{active} of {count}"
+            );
+        }
+    }
+
+    #[test]
+    fn mouse_color_takes_an_optional_1_based_zone() {
+        let parsed = Cli::try_parse_from(["ssgg", "mouse", "color", "red"]).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Mouse {
+                action: MouseAction::Color { zone: None, .. }
+            }
+        ));
+        let parsed = Cli::try_parse_from(["ssgg", "mouse", "color", "00ff00", "--zone", "3"]).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Mouse {
+                action: MouseAction::Color { ref color, zone: Some(3) }
+            } if color == "00ff00"
+        ));
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "color", "red", "--zone", "-1"]).is_err());
+
+        assert_eq!(zone_index(1, 3).unwrap(), 0);
+        assert_eq!(zone_index(3, 3).unwrap(), 2);
+        for (zone, count) in [(0, 3), (4, 3), (2, 1)] {
+            assert!(
+                matches!(zone_index(zone, count), Err(Error::InvalidConfig(_))),
+                "{zone} of {count}"
             );
         }
     }

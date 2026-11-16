@@ -373,6 +373,24 @@ impl MouseModel {
         })
     }
 
+    /// [EXPERIMENTAL] The colour command of one LED zone (0-based), the frame [`Self::color_commands`] sends for it.
+    pub fn zone_color_command(&self, zone: u8, color: Color) -> Result<MouseColorCommand> {
+        let zones = self.spec.zone_count;
+        if zone >= zones {
+            return Err(Error::InvalidConfig(format!(
+                "LED zone index {zone} out of range: the {} has {zones} zone(s), 0..={}",
+                self.name,
+                zones.saturating_sub(1)
+            )));
+        }
+        Ok(MouseColorCommand {
+            layout: self.spec.color_layout,
+            dongle: self.dongle,
+            zone,
+            color,
+        })
+    }
+
     /// One colour command per LED zone.
     pub fn color_commands(&self, color: Color) -> Vec<MouseColorCommand> {
         (0..self.spec.zone_count)
@@ -505,6 +523,11 @@ impl Mouse for ModernMouse {
             self.send_setting(&command)?;
         }
         Ok(())
+    }
+
+    fn set_zone_color(&mut self, zone: u8, color: Color) -> Result<()> {
+        let command = self.model.zone_color_command(zone, color)?;
+        self.send_setting(&command)
     }
 
     fn battery_level(&mut self) -> Result<Option<u8>> {
@@ -762,6 +785,37 @@ mod tests {
             colors(PRIME_WIRELESS_DONGLE, red),
             [vec![0x00, 0x61, 0x01, 0x00, 0xFF, 0x00, 0x00]]
         );
+    }
+
+    /// rivalcfg's Rival 3 Gen 2 vectors for `--z1`, `--z2` and `--z3 #ABCDEF` (top, middle and bottom of the strip):
+    /// `21 01 ab cd ef`, `21 02 00 00 00 ab cd ef`, `21 04 00 00 00 00 00 00 ab cd ef`.
+    #[test]
+    fn rival_3_gen_2_zone_colour_frames() {
+        let c = Color::new(0xAB, 0xCD, 0xEF);
+        let zone = |z| bytes(&pid(RIVAL_3_GEN_2).zone_color_command(z, c).unwrap());
+        assert_eq!(zone(0), [0x00, 0x21, 0x01, 0xAB, 0xCD, 0xEF]);
+        assert_eq!(zone(1), [0x00, 0x21, 0x02, 0x00, 0x00, 0x00, 0xAB, 0xCD, 0xEF]);
+        assert_eq!(
+            zone(2),
+            [0x00, 0x21, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xAB, 0xCD, 0xEF]
+        );
+        assert_eq!(colors(RIVAL_3_GEN_2, c), [zone(0), zone(1), zone(2)]);
+    }
+
+    #[test]
+    fn zone_colour_rejects_a_zone_the_model_does_not_have() {
+        for m in MOUSE_MODELS {
+            let last = m.spec.zone_count - 1;
+            assert!(m.zone_color_command(last, Color::WHITE).is_ok(), "{}", m.name);
+            assert!(
+                matches!(
+                    m.zone_color_command(last + 1, Color::WHITE),
+                    Err(Error::InvalidConfig(_))
+                ),
+                "{}",
+                m.name
+            );
+        }
     }
 
     #[test]

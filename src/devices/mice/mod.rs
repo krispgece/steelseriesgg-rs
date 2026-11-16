@@ -35,6 +35,12 @@ pub trait Mouse: Device {
     /// Set every LED zone to one steady colour.
     fn set_color(&mut self, color: Color) -> Result<()>;
 
+    /// [EXPERIMENTAL] Set one LED zone (0-based, below the model's zone count) to a steady colour; only that zone's
+    /// frame is sent.
+    fn set_zone_color(&mut self, _zone: u8, _color: Color) -> Result<()> {
+        Err(unsupported("setting one LED zone", &self.info().name))
+    }
+
     /// Battery level (0-100), or `None` for a model without a battery or a reply that cannot be read.
     fn battery_level(&mut self) -> Result<Option<u8>>;
 }
