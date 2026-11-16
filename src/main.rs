@@ -537,13 +537,11 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
                     Ok(Some(PollRateReadback { reply, hz })) => {
                         match hz {
                             Some(hz) => println!("Polling rate (read back, EXPERIMENTAL): {hz} Hz, from this reply:"),
-                            None => println!("Polling rate (read back, EXPERIMENTAL): unknown level in this reply:"),
+                            None => println!("Polling rate (read back, EXPERIMENTAL): not decoded, the reply:"),
                         }
                         print_report(&reply);
                     }
-                    Ok(None) => println!(
-                        "Polling rate (read back, EXPERIMENTAL): no reply (`ssgg --debug` logs the reports skipped)"
-                    ),
+                    Ok(None) => println!("Polling rate (read back, EXPERIMENTAL): no reply"),
                     Err(e) => println!("Polling rate (read back, EXPERIMENTAL): {e}"),
                 }
             }

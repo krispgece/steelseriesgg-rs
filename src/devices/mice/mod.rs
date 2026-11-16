@@ -30,9 +30,9 @@ pub enum SettingAck {
 /// [EXPERIMENTAL] The answer to the polling-rate read-back (`AB`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PollRateReadback {
-    /// The reply as read, from the echoed opcode on.
+    /// The reply as read: the first report starting with the echoed `AB`, or the first report read when none did.
     pub reply: Vec<u8>,
-    /// The rate the reply names, `None` for a level outside the known table.
+    /// The rate the reply names, `None` for a reply without the echoed `AB` or a level outside the known table.
     pub hz: Option<u16>,
 }
 

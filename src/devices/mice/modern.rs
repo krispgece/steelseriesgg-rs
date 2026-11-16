@@ -504,6 +504,24 @@ pub fn await_reply(mut read: impl FnMut(&mut [u8]) -> Result<usize>, opcode: u8)
     Ok(None)
 }
 
+/// [EXPERIMENTAL] [`await_reply`], except that when no report answers `opcode`, the first report read comes back
+/// instead, so a reply laid out without the echoed opcode is still seen: Mousework's probe decodes the `AB` reply as
+/// if it carried none. `Ok(None)` only when the first read times out.
+pub fn await_reply_or_first(mut read: impl FnMut(&mut [u8]) -> Result<usize>, opcode: u8) -> Result<Option<Vec<u8>>> {
+    let mut first = None;
+    let reply = await_reply(
+        |report| {
+            let len = read(report)?;
+            if first.is_none() && len > 0 {
+                first = Some(report[..len.min(report.len())].to_vec());
+            }
+            Ok(len)
+        },
+        opcode,
+    )?;
+    Ok(reply.or(first))
+}
+
 /// [EXPERIMENTAL] Firmware version in a `90` reply: the printable ASCII behind the echoed opcode, as in GG's
 /// capture of a wired Rival 3 Gen 2 (`90 31 2e 31 2e 36 20 2b 65 35 37 66 66 36 61 31 00 ..` = `1.1.6 +e57ff6a1`).
 /// `None` for another reply or one without a version.
@@ -617,12 +635,18 @@ impl ModernMouse {
         }
     }
 
-    /// Send a read-only query and return the reply that answers it, `None` when none came.
-    fn query(&mut self, command: &dyn HidCommand) -> Result<Option<Vec<u8>>> {
+    /// Send a read-only query and return the reply that answers it ([`await_reply`]), or with `or_first` the first
+    /// report read when none does ([`await_reply_or_first`]); `None` when no report came.
+    fn query(&mut self, command: &dyn HidCommand, or_first: bool) -> Result<Option<Vec<u8>>> {
         self.drop_stale_reports()?;
         let opcode = self.send(command)?;
         let device = self.device()?.lock();
-        await_reply(|report| Ok(device.read_timeout(report, READ_TIMEOUT_MS)?), opcode)
+        let read = |report: &mut [u8]| -> Result<usize> { Ok(device.read_timeout(report, READ_TIMEOUT_MS)?) };
+        if or_first {
+            await_reply_or_first(read, opcode)
+        } else {
+            await_reply(read, opcode)
+        }
     }
 }
 
@@ -706,7 +730,7 @@ impl Mouse for ModernMouse {
             .model
             .firmware_query()
             .ok_or_else(|| unsupported("reading the firmware version", self.model.name))?;
-        let reply = self.query(&query)?;
+        let reply = self.query(&query, false)?;
         let version = reply.as_deref().and_then(decode_firmware_reply);
         if let (Some(reply), None) = (&reply, &version) {
             tracing::debug!("the firmware reply carries no version: {}", hex_of(reply));
@@ -719,7 +743,7 @@ impl Mouse for ModernMouse {
             .model
             .poll_rate_query()
             .ok_or_else(|| unsupported("reading the polling rate back", self.model.name))?;
-        Ok(self.query(&query)?.map(|reply| PollRateReadback {
+        Ok(self.query(&query, true)?.map(|reply| PollRateReadback {
             hz: self.model.decode_poll_rate_reply(&reply),
             reply,
         }))
@@ -1233,6 +1257,38 @@ mod tests {
         for reply in [&[0xAB, 0x00][..], &[0xAB, 0x05], &[0xAB], &[0x01], &[0x2B, 0x01], &[]] {
             assert_eq!(model.decode_poll_rate_reply(reply), None, "{reply:02x?}");
         }
+    }
+
+    /// The `AB` read-back keeps the first report when none starts with `AB`, so a reply laid out as Mousework reads
+    /// it (level 1 in the first byte, no echo) is still shown, undecoded.
+    #[test]
+    fn the_poll_rate_read_back_falls_back_to_the_first_report() {
+        let model = pid(RIVAL_3_GEN_2);
+        let mut echoed = vec![0xAB, 0x01];
+        echoed.resize(REPLY_LEN, 0);
+        let mut reports = Reports::new(vec![captured_echo(0x34), echoed.clone()]);
+        let reply = await_reply_or_first(|buffer| reports.read(buffer), 0xAB)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reply, echoed, "a report starting with AB is preferred");
+        assert_eq!(model.decode_poll_rate_reply(&reply), Some(1000));
+
+        let mut mousework = vec![0x01];
+        mousework.resize(REPLY_LEN, 0);
+        let mut reports = Reports::new(vec![mousework.clone()]);
+        let reply = await_reply_or_first(|buffer| reports.read(buffer), 0xAB)
+            .unwrap()
+            .unwrap();
+        assert_eq!(reply, mousework);
+        assert_eq!(reports.reads, 2, "the wait for an AB report ends at the first timeout");
+        assert_eq!(model.decode_poll_rate_reply(&reply), None);
+
+        let mut silent = Reports::new(vec![]);
+        assert_eq!(await_reply_or_first(|buffer| silent.read(buffer), 0xAB).unwrap(), None);
+        assert_eq!(silent.reads, 1);
+
+        let unplugged = |_: &mut [u8]| -> Result<usize> { Err(Error::DeviceCommunication("unplugged".to_string())) };
+        assert!(await_reply_or_first(unplugged, 0xAB).is_err());
     }
 
     #[test]
