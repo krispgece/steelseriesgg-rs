@@ -568,15 +568,20 @@ impl ModernMouse {
             .ok_or(Error::DeviceCommunication("Device not connected".to_string()))
     }
 
-    /// Write one command, keeping [`COMMAND_SPACING`] since the previous one, and return its wire opcode, the byte
-    /// an answer to it starts with. Written with `hid_write` directly: the shared padded writer would pad the
-    /// report and drop a repeated one.
-    fn send(&mut self, command: &dyn HidCommand) -> Result<u8> {
+    /// Sleep out what is left of [`COMMAND_SPACING`] since the previous write.
+    fn pace(&self) {
         if let Some(elapsed) = self.last_write.map(|at| at.elapsed())
             && elapsed < COMMAND_SPACING
         {
             std::thread::sleep(COMMAND_SPACING - elapsed);
         }
+    }
+
+    /// Write one command, keeping [`COMMAND_SPACING`] since the previous one, and return its wire opcode, the byte
+    /// an answer to it starts with. Written with `hid_write` directly: the shared padded writer would pad the
+    /// report and drop a repeated one.
+    fn send(&mut self, command: &dyn HidCommand) -> Result<u8> {
+        self.pace();
         let mut report = [0u8; MOUSE_REPORT_BUFFER_SIZE];
         let len = command.serialize(&mut report, HidDeviceType::Mouse)?;
         let opcode = report[..len]
@@ -598,6 +603,9 @@ impl ModernMouse {
             self.device()?.lock().read_timeout(&mut ack, READ_TIMEOUT_MS)?;
             return Ok(());
         }
+        // The queue is emptied after the spacing, right before the write, so an answer to the previous frame that
+        // arrives during the spacing is not taken for this frame's echo (the colour frames all echo `21`).
+        self.pace();
         if let Err(err) = self.drop_stale_reports() {
             tracing::debug!("dropping stale mouse reports failed: {err}");
         }
@@ -638,6 +646,7 @@ impl ModernMouse {
     /// Send a read-only query and return the reply that answers it ([`await_reply`]), or with `or_first` the first
     /// report read when none does ([`await_reply_or_first`]); `None` when no report came.
     fn query(&mut self, command: &dyn HidCommand, or_first: bool) -> Result<Option<Vec<u8>>> {
+        self.pace();
         self.drop_stale_reports()?;
         let opcode = self.send(command)?;
         let device = self.device()?.lock();
