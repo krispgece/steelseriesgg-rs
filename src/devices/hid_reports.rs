@@ -132,6 +132,9 @@ pub enum CommandCode {
     /// [EXPERIMENTAL] Modern-family mouse battery query (0x92, `00 92`; 0xD2 on a 2.4 GHz receiver PID), see
     /// [`MouseBatteryQueryCommand`]. From a community rivalcfg-derived fork, untested on hardware.
     MouseBattery = 0x92,
+    /// [EXPERIMENTAL] Modern-family mouse polling-rate read-back (0xAB, `00 ab` zero padded), see
+    /// [`MousePollRateQueryCommand`]. From Mousework's read-only probe, untested on hardware.
+    MousePollRateQuery = 0xAB,
     /// [EXPERIMENTAL] Modern-family mouse DPI, see [`MouseDpiCommand`]. A tag, never a wire byte: the wire opcode
     /// is 0x2D on every model but the Rival 3 Gen 2 (0x34), and 0x2D already belongs to
     /// [`CommandCode::ActuationControl`]. From a community rivalcfg-derived fork, untested on hardware.
@@ -237,6 +240,7 @@ impl fmt::Display for CommandCode {
             CommandCode::HeadsetProBattery => write!(f, "HEADSET_PRO_BATTERY_EXPERIMENTAL"),
             CommandCode::MousePollRate => write!(f, "MOUSE_POLL_RATE_EXPERIMENTAL"),
             CommandCode::MouseBattery => write!(f, "MOUSE_BATTERY_EXPERIMENTAL"),
+            CommandCode::MousePollRateQuery => write!(f, "MOUSE_POLL_RATE_QUERY_EXPERIMENTAL"),
             CommandCode::MouseDpi => write!(f, "MOUSE_DPI_EXPERIMENTAL"),
             CommandCode::MouseColor => write!(f, "MOUSE_COLOR_EXPERIMENTAL"),
             CommandCode::MouseDpiStages => write!(f, "MOUSE_DPI_STAGES_EXPERIMENTAL"),
@@ -298,6 +302,7 @@ impl CommandCode {
             0xB7 => Some(CommandCode::HeadsetProBattery),
             0x2B => Some(CommandCode::MousePollRate),
             0x92 => Some(CommandCode::MouseBattery),
+            0xAB => Some(CommandCode::MousePollRateQuery),
             0x38 => Some(CommandCode::AnalogKeys),
             0x41 => Some(CommandCode::Apex2023DirectClear),
             0x1F => Some(CommandCode::Apex2023Oled),
@@ -2538,6 +2543,35 @@ impl HidCommand for MouseBatteryQueryCommand {
 
     fn description(&self) -> String {
         "Mouse battery query".to_string()
+    }
+}
+
+/// [EXPERIMENTAL] Modern-family mouse polling-rate read-back: `00 <0xAB>`, zero padded to 64 bytes behind the
+/// report ID like GG's and Mousework's queries. Read-only, for the wired models without a wireless mode;
+/// `mice::modern` decodes the reply. Source: Mousework's read-only probe (`mousework/probe.py`), which sends `AB`
+/// to those models and maps the level 1, 2, 3, 4 to 1000, 500, 250, 125 Hz; never sent from `ssgg` on hardware.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MousePollRateQueryCommand;
+
+impl HidCommand for MousePollRateQueryCommand {
+    fn command_code(&self) -> CommandCode {
+        CommandCode::MousePollRateQuery
+    }
+
+    fn serialize(&self, buffer: &mut [u8], _device_type: HidDeviceType) -> Result<usize> {
+        check_report_buffer(buffer, MOUSE_REPORT_BUFFER_SIZE)?;
+        let report = &mut buffer[..MOUSE_REPORT_BUFFER_SIZE];
+        report.fill(0);
+        report[1] = CommandCode::MousePollRateQuery as u8;
+        Ok(MOUSE_REPORT_BUFFER_SIZE)
+    }
+
+    fn validate(&self) -> Result<()> {
+        Ok(())
+    }
+
+    fn description(&self) -> String {
+        "Mouse polling-rate query".to_string()
     }
 }
 
@@ -4942,6 +4976,29 @@ mod tests {
         assert_eq!(report[..4], [0x00, 0x61, 0x00, 0x02]);
         assert_eq!(report[31..], [1, 2, 3]);
         assert!(HidDeviceType::Mouse.includes_report_id());
+    }
+
+    #[test]
+    fn mouse_poll_rate_query_is_ab_zero_padded_to_64_bytes_behind_the_report_id() {
+        let query = mouse_report(&MousePollRateQueryCommand);
+        assert_eq!(query.len(), MOUSE_REPORT_BUFFER_SIZE);
+        assert_eq!(query[..2], [0x00, 0xAB]);
+        assert!(query[2..].iter().all(|&b| b == 0));
+        assert_eq!(
+            MousePollRateQueryCommand.command_code(),
+            CommandCode::MousePollRateQuery
+        );
+        assert_eq!(
+            CommandCode::from_report_byte(0xAB),
+            Some(CommandCode::MousePollRateQuery)
+        );
+        assert!(CommandCode::MousePollRateQuery.to_string().ends_with("_EXPERIMENTAL"));
+        let mut short = [0u8; MOUSE_REPORT_BUFFER_SIZE - 1];
+        assert!(
+            MousePollRateQueryCommand
+                .serialize(&mut short, HidDeviceType::Mouse)
+                .is_err()
+        );
     }
 
     #[test]

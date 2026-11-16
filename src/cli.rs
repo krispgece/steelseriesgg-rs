@@ -817,6 +817,14 @@ pub(crate) enum MouseAction {
         #[arg(long, value_name = "N")]
         zone: Option<u8>,
     },
+
+    /// Show the model, USB id and firmware version (read-only queries, wired models without a wireless mode only;
+    /// EXPERIMENTAL)
+    Info {
+        /// Also read the polling rate back from the mouse (EXPERIMENTAL: the reply layout is unverified)
+        #[arg(long)]
+        poll_rate: bool,
+    },
 }
 
 /// The Apex Pro TKL 2023 (0x1628) settings below come from GG's device spec. Only `set` (`38 61` layer 0) is
@@ -1509,6 +1517,25 @@ mod tests {
                 "{zone} of {count}"
             );
         }
+    }
+
+    #[test]
+    fn mouse_info_reads_the_polling_rate_back_only_on_request() {
+        let parsed = Cli::try_parse_from(["ssgg", "mouse", "info"]).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Mouse {
+                action: MouseAction::Info { poll_rate: false }
+            }
+        ));
+        let parsed = Cli::try_parse_from(["ssgg", "mouse", "info", "--poll-rate"]).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Mouse {
+                action: MouseAction::Info { poll_rate: true }
+            }
+        ));
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "info", "1000"]).is_err());
     }
 
     #[test]

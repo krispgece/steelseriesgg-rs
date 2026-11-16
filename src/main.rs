@@ -14,7 +14,7 @@ use crate::cli::{
 };
 use crate::commands::{
     cmd_actuation, cmd_bug_report, cmd_device, cmd_hid_logs, cmd_keymap, cmd_oled, cmd_onboard, cmd_performance,
-    cmd_status, cmd_test_device, cmd_validate, cmd_verify_performance,
+    cmd_status, cmd_test_device, cmd_validate, cmd_verify_performance, print_report,
 };
 use crate::daemon::{cmd_daemon, cmd_server};
 use tracing::{Level, info};
@@ -25,6 +25,7 @@ use steelseries_gg::device_state::{DeviceId, DeviceStateStore, KeyboardState};
 use steelseries_gg::devices::headsets::nova7::HARDWARE_CONFIRMED;
 use steelseries_gg::devices::keyboards::Keyboard;
 use steelseries_gg::devices::mice::modern::model_for as mouse_model;
+use steelseries_gg::devices::mice::{PollRateReadback, SettingAck};
 use steelseries_gg::devices::{
     DeviceInfo, DeviceManager, DeviceType, KeyAddress, KeyId,
     diagnostics::{init_global_diagnostics, with_global_diagnostics},
@@ -523,9 +524,65 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
             mouse.set_zone_color(zone_index(zone, zones)?, require_color(&color)?)?;
             println!("Colour request sent for zone {zone} of {zones} ({color}).");
         }
+        MouseAction::Info { poll_rate } => {
+            println!("Model: {}", mouse_info.name);
+            println!("USB id: {:04x}:{:04x}", mouse_info.vendor_id, mouse_info.product_id);
+            match mouse.firmware_version() {
+                Ok(Some(version)) => println!("Firmware: {version}"),
+                Ok(None) => println!("Firmware: no reply"),
+                Err(e) => println!("Firmware: {e}"),
+            }
+            if poll_rate {
+                match mouse.poll_rate_readback() {
+                    Ok(Some(PollRateReadback { reply, hz })) => {
+                        match hz {
+                            Some(hz) => println!("Polling rate (read back, EXPERIMENTAL): {hz} Hz, from this reply:"),
+                            None => println!("Polling rate (read back, EXPERIMENTAL): unknown level in this reply:"),
+                        }
+                        print_report(&reply);
+                    }
+                    Ok(None) => println!(
+                        "Polling rate (read back, EXPERIMENTAL): no reply (`ssgg --debug` logs the reports skipped)"
+                    ),
+                    Err(e) => println!("Polling rate (read back, EXPERIMENTAL): {e}"),
+                }
+            }
+        }
+    }
+    if let Some(line) = acknowledgement_line(mouse.last_acknowledgements()) {
+        println!("{line}");
     }
 
     Ok(())
+}
+
+/// Whether a wired mouse echoed the frames of the setting just sent; `None` when nothing was read (a 2.4 GHz
+/// receiver, or no setting). A missing echo is not an error: the frames were sent.
+fn acknowledgement_line(acks: &[SettingAck]) -> Option<String> {
+    if acks.is_empty() {
+        return None;
+    }
+    let statuses: Vec<String> = acks
+        .iter()
+        .filter_map(|ack| match ack {
+            SettingAck::Echoed { status, .. } => Some(format!("{status:02x}")),
+            SettingAck::NoReply => None,
+        })
+        .collect();
+    let (frames, echoed) = (acks.len(), statuses.len());
+    let answer = match echoed {
+        0 => "no",
+        _ if echoed == frames => "yes",
+        _ => "partly",
+    };
+    let detail = if echoed == 0 {
+        "the setting was sent all the same".to_string()
+    } else {
+        format!("status {}", statuses.join(" "))
+    };
+    Some(format!(
+        "Acknowledged by the mouse: {answer}, {echoed} of {frames} frame(s) echoed ({detail})."
+    ))
 }
 
 async fn cmd_remap(action: RemapAction) -> Result<()> {
@@ -1230,4 +1287,27 @@ async fn cmd_sonar(action: SonarAction) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mouse_acknowledgements_are_summarised_per_frame() {
+        let echoed = |status| SettingAck::Echoed { opcode: 0x21, status };
+        assert_eq!(acknowledgement_line(&[]), None);
+        assert_eq!(
+            acknowledgement_line(&[echoed(0), echoed(0), echoed(0)]).as_deref(),
+            Some("Acknowledged by the mouse: yes, 3 of 3 frame(s) echoed (status 00 00 00).")
+        );
+        assert_eq!(
+            acknowledgement_line(&[echoed(0), SettingAck::NoReply, echoed(1)]).as_deref(),
+            Some("Acknowledged by the mouse: partly, 2 of 3 frame(s) echoed (status 00 01).")
+        );
+        assert_eq!(
+            acknowledgement_line(&[SettingAck::NoReply]).as_deref(),
+            Some("Acknowledged by the mouse: no, 0 of 1 frame(s) echoed (the setting was sent all the same).")
+        );
+    }
 }
