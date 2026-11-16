@@ -569,32 +569,38 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
     Ok(())
 }
 
-/// Whether a wired mouse echoed the frames of the setting just sent; `None` when nothing was read (a 2.4 GHz
-/// receiver, or no setting). A missing echo is not an error: the frames were sent.
+/// [EXPERIMENTAL] How many frames of the setting just sent a wired mouse echoed, and their status bytes; `None` when
+/// nothing was read (a 2.4 GHz receiver, or no setting). A missing echo is not an error: the frames were sent. Only
+/// status `00` has been seen (GG's capture of a Rival 3 Gen 2), so the line reads no success or failure into it.
 fn acknowledgement_line(acks: &[SettingAck]) -> Option<String> {
     if acks.is_empty() {
         return None;
     }
-    let statuses: Vec<String> = acks
+    let statuses: Vec<u8> = acks
         .iter()
         .filter_map(|ack| match ack {
-            SettingAck::Echoed { status, .. } => Some(format!("{status:02x}")),
+            SettingAck::Echoed { status, .. } => Some(*status),
             SettingAck::NoReply => None,
         })
         .collect();
     let (frames, echoed) = (acks.len(), statuses.len());
-    let answer = match echoed {
-        0 => "no",
-        _ if echoed == frames => "yes",
-        _ => "partly",
-    };
     let detail = if echoed == 0 {
-        "the setting was sent all the same".to_string()
+        " (the setting was sent all the same)".to_string()
     } else {
-        format!("status {}", statuses.join(" "))
+        let list = statuses
+            .iter()
+            .map(|status| format!("{status:02x}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        let unknown = if statuses.iter().any(|status| *status != 0) {
+            "; a status other than 00 has no known meaning"
+        } else {
+            ""
+        };
+        format!(", status {list}{unknown}")
     };
     Some(format!(
-        "Acknowledged by the mouse: {answer}, {echoed} of {frames} frame(s) echoed ({detail})."
+        "Echo from the mouse (EXPERIMENTAL): {echoed} of {frames} frame(s) echoed{detail}."
     ))
 }
 
@@ -1312,15 +1318,18 @@ mod tests {
         assert_eq!(acknowledgement_line(&[]), None);
         assert_eq!(
             acknowledgement_line(&[echoed(0), echoed(0), echoed(0)]).as_deref(),
-            Some("Acknowledged by the mouse: yes, 3 of 3 frame(s) echoed (status 00 00 00).")
+            Some("Echo from the mouse (EXPERIMENTAL): 3 of 3 frame(s) echoed, status 00 00 00.")
         );
         assert_eq!(
             acknowledgement_line(&[echoed(0), SettingAck::NoReply, echoed(1)]).as_deref(),
-            Some("Acknowledged by the mouse: partly, 2 of 3 frame(s) echoed (status 00 01).")
+            Some(
+                "Echo from the mouse (EXPERIMENTAL): 2 of 3 frame(s) echoed, status 00 01; a status other than 00 has \
+                 no known meaning."
+            )
         );
         assert_eq!(
             acknowledgement_line(&[SettingAck::NoReply]).as_deref(),
-            Some("Acknowledged by the mouse: no, 0 of 1 frame(s) echoed (the setting was sent all the same).")
+            Some("Echo from the mouse (EXPERIMENTAL): 0 of 1 frame(s) echoed (the setting was sent all the same).")
         );
     }
 }
