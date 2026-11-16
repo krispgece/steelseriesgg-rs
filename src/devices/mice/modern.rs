@@ -851,10 +851,12 @@ mod tests {
     }
 
     /// rivalcfg PR #292: `34 01 00 12 12` is the frame that applied 800 DPI on a wired `0x1870`, where the 1-based
-    /// `34 01 01 ..` was ignored. The Aerox 3 keeps rivalcfg's 1-based preset.
+    /// `34 01 01 ..` was ignored. GG's own frame to that mouse (rivalcfg issue #249 capture, frame 27) is
+    /// `34 01 00 3e 3e`, 2700 DPI. The Aerox 3 keeps rivalcfg's 1-based preset.
     #[test]
     fn rival_3_gen_2_selects_its_presets_0_based() {
         assert_eq!(dpi(RIVAL_3_GEN_2, 800), [0x00, 0x34, 0x01, 0x00, 0x12, 0x12]);
+        assert_eq!(dpi(RIVAL_3_GEN_2, 2700), [0x00, 0x34, 0x01, 0x00, 0x3E, 0x3E]);
         assert_eq!(dpi(AEROX_3, 800), [0x00, 0x2D, 0x01, 0x01, 0x12]);
     }
 
