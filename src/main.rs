@@ -527,22 +527,37 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
         MouseAction::Info { poll_rate } => {
             println!("Model: {}", mouse_info.name);
             println!("USB id: {:04x}:{:04x}", mouse_info.vendor_id, mouse_info.product_id);
-            match mouse.firmware_version() {
-                Ok(Some(version)) => println!("Firmware: {version}"),
-                Ok(None) => println!("Firmware: no reply"),
-                Err(e) => println!("Firmware: {e}"),
+            // Support is checked here, before anything is sent, so a read or write failure below ends the command
+            // with an error instead of a printed line.
+            let model = mouse_model(mouse_info.product_id);
+            if model.and_then(|model| model.firmware_query()).is_some() {
+                match mouse.firmware_version()? {
+                    Some(version) => println!("Firmware: {version}"),
+                    None => println!(
+                        "Firmware: no version read (no reply, or a reply without one; `ssgg --debug` logs what came back)"
+                    ),
+                }
+            } else {
+                println!("Firmware: not queried (only the wired models without a wireless mode are)");
             }
             if poll_rate {
-                match mouse.poll_rate_readback() {
-                    Ok(Some(PollRateReadback { reply, hz })) => {
-                        match hz {
-                            Some(hz) => println!("Polling rate (read back, EXPERIMENTAL): {hz} Hz, from this reply:"),
-                            None => println!("Polling rate (read back, EXPERIMENTAL): not decoded, the reply:"),
+                if model.and_then(|model| model.poll_rate_query()).is_some() {
+                    match mouse.poll_rate_readback()? {
+                        Some(PollRateReadback { reply, hz }) => {
+                            match hz {
+                                Some(hz) => {
+                                    println!("Polling rate (read back, EXPERIMENTAL): {hz} Hz, from this reply:")
+                                }
+                                None => println!("Polling rate (read back, EXPERIMENTAL): not decoded, the reply:"),
+                            }
+                            print_report(&reply);
                         }
-                        print_report(&reply);
+                        None => println!("Polling rate (read back, EXPERIMENTAL): no reply"),
                     }
-                    Ok(None) => println!("Polling rate (read back, EXPERIMENTAL): no reply"),
-                    Err(e) => println!("Polling rate (read back, EXPERIMENTAL): {e}"),
+                } else {
+                    println!(
+                        "Polling rate (read back, EXPERIMENTAL): not queried (only the wired models without a wireless mode are)"
+                    );
                 }
             }
         }
