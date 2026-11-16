@@ -6,11 +6,11 @@
 //! a 64-byte report that is read and dropped. The save command `11 00` (write to on-board memory) is never
 //! sent and not implemented.
 
-use super::Mouse;
 use super::dpi_tables::{TRUEMOVE_AIR, TRUEMOVE_CORE};
+use super::{Mouse, unsupported};
 use crate::devices::hid_reports::{
     HidCommand, HidDeviceType, MOUSE_REPORT_BUFFER_SIZE, MouseBatteryQueryCommand, MouseColorCommand, MouseColorLayout,
-    MouseDpiCommand, MousePollRateCommand,
+    MouseDpiCommand, MouseDpiStagesCommand, MousePollRateCommand,
 };
 use crate::devices::{Device, DeviceInfo, DeviceType, product_ids::*};
 use crate::rgb::Color;
@@ -49,6 +49,9 @@ pub struct DpiSpec {
     pub first_preset: u8,
     /// The command carries the code twice, once per axis.
     pub per_axis: bool,
+    /// The model takes several stages in one command ([`MouseDpiStagesCommand`]). Set only where that frame is
+    /// verified: the Rival 3 Gen 2, from rivalcfg's test vectors and the two-stage frame of its PR #292.
+    pub multi_stage: bool,
 }
 
 impl DpiSpec {
@@ -93,6 +96,7 @@ const SPEC_AEROX_3: MouseSpec = MouseSpec {
         encoding: DpiEncoding::Table(&TRUEMOVE_CORE),
         first_preset: 1,
         per_axis: false,
+        multi_stage: false,
     },
     poll_codes: [4, 3, 2, 1],
     color_layout: MouseColorLayout::Mask8,
@@ -108,6 +112,7 @@ const SPEC_RIVAL_3_GEN_2: MouseSpec = MouseSpec {
         opcode: MouseDpiCommand::OPCODE_RIVAL_3_GEN_2,
         first_preset: 0,
         per_axis: true,
+        multi_stage: true,
         ..SPEC_AEROX_3.dpi
     },
     ..SPEC_AEROX_3
@@ -122,6 +127,7 @@ const SPEC_AEROX_5: MouseSpec = MouseSpec {
         encoding: DpiEncoding::Table(&TRUEMOVE_AIR),
         first_preset: 0,
         per_axis: false,
+        multi_stage: false,
     },
     poll_codes: [4, 3, 2, 1],
     color_layout: MouseColorLayout::Mask8,
@@ -336,6 +342,26 @@ impl MouseModel {
         })
     }
 
+    /// [EXPERIMENTAL] One command for 1 to [`MouseDpiStagesCommand::MAX_STAGES`] DPI stages with stage `active`
+    /// (0-based) running. Refused on a model without [`DpiSpec::multi_stage`].
+    pub fn dpi_stages_command(&self, stages: &[u16], active: u8) -> Result<MouseDpiStagesCommand> {
+        let dpi_spec = &self.spec.dpi;
+        if !dpi_spec.multi_stage {
+            return Err(unsupported("setting DPI stages", self.name));
+        }
+        let command = MouseDpiStagesCommand {
+            opcode: dpi_spec.opcode,
+            dongle: self.dongle,
+            first_preset: dpi_spec.first_preset,
+            active,
+            codes: stages.iter().map(|dpi| dpi_spec.code(*dpi)).collect::<Result<_>>()?,
+            wide: matches!(dpi_spec.encoding, DpiEncoding::Linear { .. }),
+            per_axis: dpi_spec.per_axis,
+        };
+        command.validate()?;
+        Ok(command)
+    }
+
     pub fn poll_rate_command(&self, hz: u16) -> Result<MousePollRateCommand> {
         let index = POLL_RATES_HZ
             .iter()
@@ -464,6 +490,11 @@ impl Mouse for ModernMouse {
         self.send_setting(&command)
     }
 
+    fn set_dpi_stages(&mut self, stages: &[u16], active: u8) -> Result<()> {
+        let command = self.model.dpi_stages_command(stages, active)?;
+        self.send_setting(&command)
+    }
+
     fn set_poll_rate(&mut self, hz: u16) -> Result<()> {
         let command = self.model.poll_rate_command(hz)?;
         self.send_setting(&command)
@@ -580,6 +611,77 @@ mod tests {
     fn rival_3_gen_2_selects_its_presets_0_based() {
         assert_eq!(dpi(RIVAL_3_GEN_2, 800), [0x00, 0x34, 0x01, 0x00, 0x12, 0x12]);
         assert_eq!(dpi(AEROX_3, 800), [0x00, 0x2D, 0x01, 0x01, 0x12]);
+    }
+
+    fn stages(product_id: u16, values: &[u16], active: u8) -> Vec<u8> {
+        bytes(&pid(product_id).dpi_stages_command(values, active).unwrap())
+    }
+
+    /// `34 <count> <active, 0-based> x1 y1 .. xn yn`, unpadded, as rivalcfg master's `multidpi_range_choice_xy`
+    /// handler builds it for this model (`xyxy`, `first_preset` 0, no `packet_length`); codes from the TrueMove Core
+    /// table (400 = 0x08, 800 = 0x12, 1600 = 0x24, 3200 = 0x49, 6400 = 0x94).
+    #[test]
+    fn rival_3_gen_2_dpi_stage_frames() {
+        assert_eq!(stages(RIVAL_3_GEN_2, &[800], 0), [0x00, 0x34, 0x01, 0x00, 0x12, 0x12]);
+        assert_eq!(stages(RIVAL_3_GEN_2, &[800], 0), dpi(RIVAL_3_GEN_2, 800));
+        // rivalcfg PR #292: this frame made 3200 (the second stage) the running DPI on a wired 0x1870.
+        assert_eq!(
+            stages(RIVAL_3_GEN_2, &[200, 3200], 1),
+            [0x00, 0x34, 0x02, 0x01, 0x04, 0x04, 0x49, 0x49]
+        );
+        assert_eq!(
+            stages(RIVAL_3_GEN_2, &[800, 1600], 0),
+            [0x00, 0x34, 0x02, 0x00, 0x12, 0x12, 0x24, 0x24]
+        );
+        assert_eq!(
+            stages(RIVAL_3_GEN_2, &[400, 800, 1600, 3200, 6400], 2),
+            [
+                0x00, 0x34, 0x05, 0x02, 0x08, 0x08, 0x12, 0x12, 0x24, 0x24, 0x49, 0x49, 0x94, 0x94
+            ]
+        );
+    }
+
+    /// rivalcfg master's vector for `200,400,800,1600:1800` is `34 04 00 04 04 08 08 12 12 24 29`; `ssgg` sets both
+    /// axes alike, so only the last byte (Y of the fourth stage) differs.
+    #[test]
+    fn rival_3_gen_2_dpi_stages_match_rivalcfgs_test_vector() {
+        let frame = stages(RIVAL_3_GEN_2, &[200, 400, 800, 1600], 0);
+        let rivalcfg = [0x00, 0x34, 0x04, 0x00, 0x04, 0x04, 0x08, 0x08, 0x12, 0x12, 0x24, 0x29];
+        assert_eq!(frame.len(), rivalcfg.len());
+        assert_eq!(frame[..11], rivalcfg[..11]);
+        assert_eq!(frame[11], 0x24);
+    }
+
+    #[test]
+    fn dpi_stages_reject_bad_counts_active_stages_and_values() {
+        for (values, active) in [
+            (&[][..], 0),
+            (&[800, 1600, 2400, 3200, 4000, 4800][..], 0),
+            (&[800, 1600][..], 2),
+            (&[800][..], 1),
+            (&[800, 150][..], 0),
+            (&[800, 8600][..], 0),
+        ] {
+            assert!(
+                matches!(
+                    pid(RIVAL_3_GEN_2).dpi_stages_command(values, active),
+                    Err(Error::InvalidConfig(_))
+                ),
+                "{values:?} {active}"
+            );
+        }
+    }
+
+    #[test]
+    fn dpi_stages_are_refused_where_the_multi_stage_frame_is_unverified() {
+        for m in MOUSE_MODELS {
+            let command = m.dpi_stages_command(&[m.spec.dpi.min], 0);
+            assert_eq!(command.is_ok(), m.product_id == RIVAL_3_GEN_2, "{}", m.name);
+        }
+        assert!(matches!(
+            pid(AEROX_3).dpi_stages_command(&[800, 1600], 1),
+            Err(Error::DeviceCommunication(_))
+        ));
     }
 
     #[test]
@@ -760,6 +862,8 @@ mod tests {
                 bytes(&m.dpi_command(m.spec.dpi.min).unwrap()),
                 bytes(&m.poll_rate_command(1000).unwrap()),
             ];
+            let stages = m.dpi_stages_command(&[m.spec.dpi.min, m.spec.dpi.max], 1);
+            frames.extend(stages.iter().map(|s| bytes(s)));
             frames.extend(m.color_commands(Color::WHITE).iter().map(|c| bytes(c)));
             frames.extend(m.battery_query().iter().map(|q| bytes(q)));
             for frame in frames {
@@ -781,7 +885,9 @@ mod tests {
         assert_eq!(CommandCode::from_report_byte(0x21), Some(CommandCode::RgbControl));
         assert_eq!(CommandCode::from_report_byte(0xF2), None);
         assert_eq!(CommandCode::from_report_byte(0xF3), None);
+        assert_eq!(CommandCode::from_report_byte(0xF6), None);
         assert!(CommandCode::MouseDpi.to_string().ends_with("_EXPERIMENTAL"));
         assert!(CommandCode::MouseColor.to_string().ends_with("_EXPERIMENTAL"));
+        assert!(CommandCode::MouseDpiStages.to_string().ends_with("_EXPERIMENTAL"));
     }
 }

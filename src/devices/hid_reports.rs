@@ -141,6 +141,10 @@ pub enum CommandCode {
     /// [`CommandCode::RgbControl`] and [`CommandCode::Apex2023DirectWireless`]. From a community
     /// rivalcfg-derived fork, untested on hardware.
     MouseColor = 0xF3,
+    /// [EXPERIMENTAL] Modern-family mouse DPI stages, see [`MouseDpiStagesCommand`]. A tag, never a wire byte: the
+    /// wire opcode is the model's DPI opcode (0x34 on the Rival 3 Gen 2, the only model it is built for), which
+    /// already belongs to [`CommandCode::SetProfileVolatile`]. From rivalcfg, untested from `ssgg` on hardware.
+    MouseDpiStages = 0xF6,
     /// [EXPERIMENTAL] Apex 3 (`0x161A`) lighting, see [`Apex3Command`]. A tag, never a wire byte: the frames use
     /// `0x0B` (colours) and `0x0A` (brightness). From GG's decrypted device spec, never sent on hardware.
     Apex3Lighting = 0xF5,
@@ -235,6 +239,7 @@ impl fmt::Display for CommandCode {
             CommandCode::MouseBattery => write!(f, "MOUSE_BATTERY_EXPERIMENTAL"),
             CommandCode::MouseDpi => write!(f, "MOUSE_DPI_EXPERIMENTAL"),
             CommandCode::MouseColor => write!(f, "MOUSE_COLOR_EXPERIMENTAL"),
+            CommandCode::MouseDpiStages => write!(f, "MOUSE_DPI_STAGES_EXPERIMENTAL"),
             CommandCode::Apex3Lighting => write!(f, "APEX_3_LIGHTING_EXPERIMENTAL"),
             CommandCode::AnalogKeys => write!(f, "ANALOG_KEYS_EXPERIMENTAL"),
             CommandCode::Gen3ProfileRead => write!(f, "GEN3_PROFILE_READ"),
@@ -2599,6 +2604,103 @@ impl HidCommand for MouseDpiCommand {
     }
 }
 
+/// [EXPERIMENTAL] Modern-family mouse DPI stages, 1 to [`Self::MAX_STAGES`] in one frame:
+/// `00 <opcode> <count> <first_preset + active> <code 1> .. <code count>`, nothing padded. Each code is encoded as in
+/// [`MouseDpiCommand`] (two little-endian bytes when `wide`, sent twice when `per_axis`, so `x1 y1 x2 y2 ..` with
+/// both axes equal), and one stage gives that command's frame byte for byte. Source: rivalcfg master's
+/// `multidpi_range_choice_xy` handler and its Rival 3 Gen 2 test vectors (2026-11-16); never sent from `ssgg` on
+/// hardware.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MouseDpiStagesCommand {
+    pub opcode: u8,
+    pub dongle: bool,
+    /// Wire index of the first stage (0 on the Rival 3 Gen 2).
+    pub first_preset: u8,
+    /// Stage the mouse switches to, 0-based into `codes`.
+    pub active: u8,
+    /// One sensor code per stage, in the order the mouse's DPI button cycles through them.
+    pub codes: Vec<u16>,
+    pub wide: bool,
+    pub per_axis: bool,
+}
+
+impl MouseDpiStagesCommand {
+    /// Most stages one frame carries: rivalcfg's `max_preset_count` on every Modern-family model.
+    pub const MAX_STAGES: usize = 5;
+
+    /// The wire byte of the active stage.
+    fn selected(&self) -> Result<u8> {
+        self.first_preset.checked_add(self.active).ok_or_else(|| {
+            Error::InvalidConfig(format!(
+                "first preset {} plus active stage {} does not fit in one byte",
+                self.first_preset, self.active
+            ))
+        })
+    }
+}
+
+impl HidCommand for MouseDpiStagesCommand {
+    fn command_code(&self) -> CommandCode {
+        CommandCode::MouseDpiStages
+    }
+
+    fn serialize(&self, buffer: &mut [u8], _device_type: HidDeviceType) -> Result<usize> {
+        self.validate()?;
+        let count = u8::try_from(self.codes.len())
+            .map_err(|_| Error::InvalidConfig(format!("{} DPI stages do not fit in one byte", self.codes.len())))?;
+        let width = if self.wide { 2 } else { 1 };
+        let axes = if self.per_axis { 2 } else { 1 };
+        let len = 4 + self.codes.len() * width * axes;
+        check_report_buffer(buffer, len)?;
+        buffer[..4].copy_from_slice(&[0x00, mouse_opcode(self.opcode, self.dongle), count, self.selected()?]);
+        let codes = self
+            .codes
+            .iter()
+            .flat_map(|code| code.to_le_bytes()[..width].repeat(axes));
+        for (slot, byte) in buffer[4..len].iter_mut().zip(codes) {
+            *slot = byte;
+        }
+        Ok(len)
+    }
+
+    fn validate(&self) -> Result<()> {
+        if !matches!(
+            self.opcode,
+            MouseDpiCommand::OPCODE | MouseDpiCommand::OPCODE_RIVAL_3_GEN_2
+        ) {
+            return Err(Error::InvalidConfig(format!(
+                "{:#04x} is not a mouse DPI opcode",
+                self.opcode
+            )));
+        }
+        if !(1..=Self::MAX_STAGES).contains(&self.codes.len()) {
+            return Err(Error::InvalidConfig(format!(
+                "{} DPI stages given: a mouse takes 1 to {}",
+                self.codes.len(),
+                Self::MAX_STAGES
+            )));
+        }
+        if usize::from(self.active) >= self.codes.len() {
+            return Err(Error::InvalidConfig(format!(
+                "active stage index {} out of range for {} stages (0..={})",
+                self.active,
+                self.codes.len(),
+                self.codes.len() - 1
+            )));
+        }
+        if let Some(code) = self.codes.iter().find(|code| !self.wide && **code > u16::from(u8::MAX)) {
+            return Err(Error::InvalidConfig(format!(
+                "DPI code {code} does not fit in one byte"
+            )));
+        }
+        self.selected().map(|_| ())
+    }
+
+    fn description(&self) -> String {
+        format!("Mouse DPI stages {:?}, stage {} active", self.codes, self.active)
+    }
+}
+
 /// Where a Modern-family mouse takes the colour of one LED zone. Every layout is `<0x21> <selector> <RGB>`
 /// (0x61 on a 2.4 GHz receiver PID); they differ in the selector and in how far into the frame the RGB triple
 /// sits.
@@ -4896,6 +4998,72 @@ mod tests {
         };
         assert!(last_zone.serialize(&mut buffer[..20], HidDeviceType::Mouse).is_err());
         assert!(last_zone.serialize(&mut buffer, HidDeviceType::Mouse).is_ok());
+    }
+
+    fn dpi_stages(codes: &[u16], active: u8) -> MouseDpiStagesCommand {
+        MouseDpiStagesCommand {
+            opcode: MouseDpiCommand::OPCODE_RIVAL_3_GEN_2,
+            dongle: false,
+            first_preset: 0,
+            active,
+            codes: codes.to_vec(),
+            wide: false,
+            per_axis: true,
+        }
+    }
+
+    #[test]
+    fn mouse_dpi_stage_frames_carry_count_active_stage_and_codes_unpadded() {
+        assert_eq!(
+            mouse_report(&dpi_stages(&[0x04, 0x49], 1)),
+            [0x00, 0x34, 0x02, 0x01, 0x04, 0x04, 0x49, 0x49]
+        );
+        let single = MouseDpiCommand {
+            opcode: MouseDpiCommand::OPCODE_RIVAL_3_GEN_2,
+            dongle: false,
+            selected: 0,
+            code: 0x12,
+            wide: false,
+            per_axis: true,
+        };
+        assert_eq!(mouse_report(&dpi_stages(&[0x12], 0)), mouse_report(&single));
+        let wide = MouseDpiStagesCommand {
+            opcode: MouseDpiCommand::OPCODE,
+            dongle: true,
+            first_preset: 1,
+            wide: true,
+            per_axis: false,
+            ..dpi_stages(&[0x0168, 0x0008], 1)
+        };
+        assert_eq!(mouse_report(&wide), [0x00, 0x6D, 0x02, 0x02, 0x68, 0x01, 0x08, 0x00]);
+        assert_eq!(wide.command_code(), CommandCode::MouseDpiStages);
+    }
+
+    #[test]
+    fn mouse_dpi_stages_reject_bad_arguments_and_small_buffers() {
+        let mut buffer = [0u8; MOUSE_REPORT_BUFFER_SIZE];
+        for command in [
+            dpi_stages(&[], 0),
+            dpi_stages(&[1, 2, 3, 4, 5, 6], 0),
+            dpi_stages(&[1, 2], 2),
+            dpi_stages(&[1, 0x100], 0),
+            MouseDpiStagesCommand {
+                opcode: 0x11,
+                ..dpi_stages(&[1], 0)
+            },
+            MouseDpiStagesCommand {
+                first_preset: u8::MAX,
+                ..dpi_stages(&[1, 2], 1)
+            },
+        ] {
+            assert!(
+                command.serialize(&mut buffer, HidDeviceType::Mouse).is_err(),
+                "{command:?}"
+            );
+        }
+        let five = dpi_stages(&[1, 2, 3, 4, 5], 4);
+        assert!(five.serialize(&mut buffer[..13], HidDeviceType::Mouse).is_err());
+        assert_eq!(five.serialize(&mut buffer, HidDeviceType::Mouse).unwrap(), 14);
     }
 
     fn keyboard_report(command: impl HidCommand) -> Vec<u8> {

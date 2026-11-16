@@ -789,10 +789,16 @@ pub(crate) enum MouseAction {
     /// Show the battery level of a wireless model
     Status,
 
-    /// Set the DPI (range and step depend on the model, e.g. 100 to 18000 in steps of 100)
+    /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (range and step depend on the model, e.g. 100
+    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only)
     Dpi {
-        /// DPI value
-        value: u16,
+        /// DPI value, or one value per stage (at most 5)
+        #[arg(value_name = "DPI", required = true, num_args = 1..=5)]
+        values: Vec<u16>,
+
+        /// Stage the mouse starts on, 1-based
+        #[arg(long, value_name = "N", default_value_t = 1)]
+        active: u8,
     },
 
     /// Set the USB polling rate of the mouse itself (not the OS-level `pollrate` command)
@@ -1155,6 +1161,16 @@ pub(crate) enum PerformanceAction {
     },
 }
 
+/// The 0-based stage of `ssgg mouse dpi --active` (1-based) among `count` DPI stages.
+pub(crate) fn active_stage_index(active: u8, count: usize) -> Result<u8> {
+    if active == 0 || usize::from(active) > count {
+        return Err(Error::InvalidConfig(format!(
+            "--active {active} is out of range: {count} DPI stage(s) given, so 1 to {count}"
+        )));
+    }
+    Ok(active - 1)
+}
+
 pub(crate) fn parse_color(s: &str) -> Option<Color> {
     Color::parse(s)
 }
@@ -1420,11 +1436,36 @@ mod tests {
         assert!(matches!(
             parsed.command,
             Commands::Mouse {
-                action: MouseAction::Dpi { value: 800 }
-            }
+                action: MouseAction::Dpi { ref values, active: 1 }
+            } if values == &[800]
         ));
         assert!(Cli::try_parse_from(["ssgg", "mouse", "save"]).is_err());
         assert!(Cli::try_parse_from(["ssgg", "pollrate", "mouse", "1000"]).is_ok());
+    }
+
+    #[test]
+    fn mouse_dpi_takes_one_to_five_stages_and_a_1_based_active_stage() {
+        let parsed = Cli::try_parse_from(["ssgg", "mouse", "dpi", "200", "3200", "--active", "2"]).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Mouse {
+                action: MouseAction::Dpi { ref values, active: 2 }
+            } if values == &[200, 3200]
+        ));
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "dpi", "400", "800", "1600", "3200", "6400"]).is_ok());
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "dpi", "400", "800", "1600", "3200", "6400", "8000"]).is_err());
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "dpi"]).is_err());
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "dpi", "800", "--active", "x"]).is_err());
+
+        assert_eq!(active_stage_index(1, 1).unwrap(), 0);
+        assert_eq!(active_stage_index(2, 2).unwrap(), 1);
+        assert_eq!(active_stage_index(5, 5).unwrap(), 4);
+        for (active, count) in [(0, 2), (3, 2), (2, 1)] {
+            assert!(
+                matches!(active_stage_index(active, count), Err(Error::InvalidConfig(_))),
+                "{active} of {count}"
+            );
+        }
     }
 
     #[test]

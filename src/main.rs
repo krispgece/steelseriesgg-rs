@@ -10,7 +10,7 @@ use clap::Parser;
 
 use crate::cli::{
     Cli, Commands, HeadsetAction, MouseAction, PerKeyAction, PollrateAction, ProfileAction, RemapAction, RgbAction,
-    parse_key_name, require_color,
+    active_stage_index, parse_key_name, require_color,
 };
 use crate::commands::{
     cmd_actuation, cmd_bug_report, cmd_device, cmd_hid_logs, cmd_keymap, cmd_oled, cmd_onboard, cmd_performance,
@@ -494,10 +494,18 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
             Some(percent) => println!("Battery: {}%", percent),
             None => println!("Battery: unknown or not a wireless model"),
         },
-        MouseAction::Dpi { value } => {
-            mouse.set_dpi(value)?;
-            println!("DPI request sent ({}).", value);
-        }
+        MouseAction::Dpi { values, active } => match values.as_slice() {
+            [value] if active == 1 => {
+                mouse.set_dpi(*value)?;
+                println!("DPI request sent ({}).", value);
+            }
+            _ => {
+                let index = active_stage_index(active, values.len())?;
+                mouse.set_dpi_stages(&values, index)?;
+                let list = values.iter().map(u16::to_string).collect::<Vec<_>>().join(", ");
+                println!("DPI stages request sent ({list}; stage {active} active).");
+            }
+        },
         MouseAction::PollRate { hz } => {
             mouse.set_poll_rate(hz)?;
             println!("Polling rate request sent ({} Hz).", hz);
