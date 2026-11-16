@@ -17,8 +17,9 @@ pub const KEYBOARD_REPORT_SIZE: usize = 65;
 /// Standard HID report size for SteelSeries headsets (no report ID).
 pub const HEADSET_REPORT_SIZE: usize = 64;
 
-/// Buffer a Modern-family mouse command is serialized into. The reports themselves are shorter and variable
-/// in length (the longest, a Rival 5 logo colour, is 34 bytes), so `serialize` returns the used length.
+/// Buffer a Modern-family mouse command is serialized into. Settings are unpadded and variable in length (the
+/// longest, a Rival 5 logo colour, is 34 bytes), so `serialize` returns the used length; the read-only queries
+/// (`90 00`, `AB`) fill the whole buffer, zero padded to 64 bytes behind the report ID.
 pub const MOUSE_REPORT_BUFFER_SIZE: usize = 65;
 
 /// Bit set on the first byte of every command sent to the 2.4 GHz receiver PID of a Modern-family mouse.
@@ -94,6 +95,9 @@ pub enum CommandCode {
     /// endpoint with the ASCII firmware version. The source byte selects which firmware answers -
     /// [`FirmwareSource::Keyboard`] (`90 00`) the keyboard's, [`FirmwareSource::Led`] (`90 01`) the LED
     /// controller's. See [`OnboardFirmwareVersionCommand`]. Confirmed on hardware on an Apex 7 (`0x1612`).
+    /// [EXPERIMENTAL] on Modern-family mice: `mice::modern` sends [`OnboardFirmwareVersionCommand::KEYBOARD`] as
+    /// the read-only firmware query of the wired models without a wireless mode, never from `ssgg` on hardware; the
+    /// confirmed status and the `FIRMWARE_VERSION` label are the Apex 7's.
     OnboardFirmwareVersion = 0x90,
     /// `[EXPERIMENTAL]` Legacy Apex driver mode (0x6C): GG's engine writes `6c 00 01` when it opens a
     /// device (`DriverModeEnable` in its init-sequence descriptor, the fourth frame of its opening
@@ -2755,7 +2759,9 @@ pub enum MouseColorLayout {
 /// Modern-family mouse LED colour for one zone, in the [`MouseColorLayout`] of the model. A
 /// 2.4 GHz receiver PID sets [`MOUSE_DONGLE_FLAG`] on the opcode. Source: community rivalcfg-derived fork.
 /// Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, 2026-11-16) with the same colour sent to all three zones;
-/// [EXPERIMENTAL] for a colour per zone and on every other PID.
+/// [EXPERIMENTAL] for a colour per zone and on every other PID. `validate` bounds `zone` by the layout only (7 for
+/// `Mask8`, 15 for `Mask16`); the model's zone count (3 on the Rival 3 Gen 2) is checked by
+/// `mice::modern::MouseModel::zone_color_command`, which builds the command for one zone of a model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseColorCommand {
     pub layout: MouseColorLayout,

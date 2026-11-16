@@ -2,15 +2,17 @@
 //!
 //! The whole protocol comes from a community fork derived from rivalcfg. Only the colour frames have been run on
 //! hardware: one colour on all three zones of a wired Rival 3 Gen 2 (owner, 2026-11-16).
-//! Commands are output reports `00 <opcode> <args>` of variable length on the model's control interface.
+//! Commands are output reports `00 <opcode> <args>` on the model's control interface: settings of variable length,
+//! unpadded, the read-only queries zero padded to 64 bytes.
 //! The 2.4 GHz receiver PID of a wireless mouse sets bit 0x40 on every opcode and answers each setting with
 //! a 64-byte report that is read and dropped. The save command `11 00` (write to on-board memory) is never
 //! sent and not implemented.
 //!
 //! [EXPERIMENTAL] A wired mouse echoes each setting as `<opcode> 00` in GG's capture of a wired Rival 3 Gen 2 (the
-//! USBPcap text attached to rivalcfg issue #249, 2025-07-29); the echo is read after every frame and kept as a
-//! [`SettingAck`], and a missing one is not an error. The read-only firmware (`90 00`) and polling-rate (`AB`)
-//! queries go only to the models without a wireless mode.
+//! USBPcap text attached to rivalcfg issue #249, 2025-07-29; the PID comes from the issue, the capture does not
+//! decode the descriptors); the echo is read after every frame and kept as a [`SettingAck`], and a missing one is
+//! not an error. The read-only firmware (`90 00`) and polling-rate (`AB`) queries go only to the models without a
+//! wireless mode.
 
 use super::dpi_tables::{TRUEMOVE_AIR, TRUEMOVE_CORE};
 use super::{Mouse, PollRateReadback, SettingAck, unsupported};
@@ -67,7 +69,8 @@ pub struct DpiSpec {
     /// The command carries the code twice, once per axis.
     pub per_axis: bool,
     /// The model takes several stages in one command ([`MouseDpiStagesCommand`]). Set only where that frame is
-    /// verified: the Rival 3 Gen 2, from rivalcfg's test vectors and the two-stage frame of its PR #292.
+    /// evidenced: the Rival 3 Gen 2, by rivalcfg's test vectors and the third-party hardware test (macOS) of the
+    /// two-stage frame in its PR #292; never run from `ssgg`.
     pub multi_stage: bool,
 }
 

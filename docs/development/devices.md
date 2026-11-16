@@ -202,20 +202,23 @@ Aerox 5 `0x1850`; Aerox 5 Wireless `0x1852`, `0x1854`, `0x185C`, `0x185E`, `0x18
 Wireless `0x1840`, `0x1842`; Rival 3 Gen 2 `0x1870`; Rival 5 `0x183C`, `0x183E`. Every PID in the requested
 scope belongs to this family in the fork; none was dropped.
 
-- Transport: output reports `00 <opcode> <args>`, variable length and not padded by `ssgg` (hidapi pads on
-  Windows). Commands go to one interface per model: 3 for everything but the Rival 5, which uses 0. A 2.4 GHz
-  receiver PID sets bit `0x40` on every opcode and answers each setting with a 64-byte report that is read and
-  dropped. Commands are spaced 50 ms apart.
+- Transport: output reports `00 <opcode> <args>`; settings are variable in length and not padded by `ssgg`
+  (hidapi pads on Windows), the read-only queries are zero padded to 64 bytes. Commands go to one interface per
+  model: 3 for everything but the Rival 5, which uses 0. A 2.4 GHz receiver PID sets bit `0x40` on every opcode
+  and answers each setting with a 64-byte report that is read and dropped. Commands are spaced 50 ms apart.
 - Echo [EXPERIMENTAL, added 2026-11-16]: on every PID but a receiver's, `ssgg` reads the answer to each setting
   frame, a 64-byte input report `<opcode> <status>` (status `00` throughout GG's capture of a Rival 3 Gen 2,
-  below), with a 50 ms timeout, and prints whether the mouse acknowledged (`Mouse::last_acknowledgements`). A
-  missing echo is not an error. Whether models other than the Rival 3 Gen 2 echo is unknown.
+  below), with a 50 ms timeout, and prints how many frames were echoed and their status (`Echo from the mouse
+  (EXPERIMENTAL): ..`, `Mouse::last_acknowledgements`); a status other than `00` has no known meaning. Queued
+  reports are dropped right before each write, after the 50 ms spacing. A missing echo is not an error. Whether
+  models other than the Rival 3 Gen 2 echo is unknown.
 - DPI: `00 2D 01 <preset> <code>`; the Rival 3 Gen 2 uses opcode `34` and sends the code once per axis. Preset
   index is 1 on Aerox 3, 0 elsewhere; the Rival 3 Gen 2 takes it 0-based per rivalcfg PR #292 (merged 2026-10-07;
   its author's wired `0x1870` under macOS ignored `34 01 01 08 08` and applied `34 01 00 12 12`), where the fork
   had 1. Ranges: 200-8500 (Aerox 3, Rival 3 Gen 2, TrueMove Core table), 100-18000 in steps of 100 (all others,
   TrueMove Air table), Prime Mini 50-18000 in steps of 50 with a 16-bit little-endian code `dpi / 50`. Off-step
-  and out-of-range values are rejected.
+  and out-of-range values are rejected. One value goes out as a single stage (count byte `01`), which in
+  rivalcfg's format replaces any stages set before.
 - DPI stages [EXPERIMENTAL, added 2026-11-16], Rival 3 Gen 2 only: `00 34 <count> <active, 0-based> x1 y1 .. xn yn`,
   1 to 5 stages for the DPI button, unpadded (`ssgg mouse dpi 800 1600 --active 2`), after rivalcfg master's
   `multidpi_range_choice_xy` handler and its test vector `34 04 00 04 04 08 08 12 12 24 29`; one stage is the
@@ -231,11 +234,14 @@ scope belongs to this family in the fork; none was dropped.
 - Read-only queries [EXPERIMENTAL, added 2026-11-16], wired-only models (Aerox 3, Aerox 5, Prime Mini, Rival 3
   Gen 2, Rival 5): `90 00`, the firmware version (reply `90 <ASCII>`), and `AB`, the polling rate read back (from
   Mousework's read-only probe, `mousework/probe.py`), both zero padded to 64 bytes; `ssgg mouse info [--poll-rate]`.
-  A reply is matched by its opcode (a leading report number 0 is tolerated), other or stale reports are skipped
-  within 8 reads, and a read that times out prints "no reply". `ssgg` decodes the `AB` level 1/2/3/4 as
-  1000/500/250/125 Hz from the byte after the echoed opcode; Mousework reads it from the first byte, so where the
-  level sits is unverified and the raw reply is printed too. The wireless models are not queried: Mousework reads
-  their `90` answer over the cable without the echoed opcode.
+  A reply is matched by its first byte, the opcode (hidapi hands these reports over without a report number),
+  other or stale reports are skipped within 8 reads, and a read that times out prints "no reply". `ssgg` decodes
+  the `AB` level 1/2/3/4 as 1000/500/250/125 Hz from the byte after the echoed opcode; Mousework reads it from the
+  first byte, as if the reply carried no echo, and marks the decoded values of every model of this family
+  unverified, so where the level sits is unverified. The `AB` reply is printed in every case: the first report
+  starting with `AB`, or, when none does, the first report read, undecoded. The wireless models are not queried
+  (`ssgg mouse info` says "not queried" and sends nothing): Mousework reads their `90` answer over the cable
+  without the echoed opcode. A read or write failure ends `ssgg mouse info` with an error.
 - Never implemented: the save command `11 00` (writes to the mouse's on-board memory). `ssgg` sends no
   save, so whether a setting survives a power cycle is unknown.
 
@@ -246,23 +252,32 @@ than the Rival 3 Gen 2, brightness, sleep and dim timers. Not covered, other com
 
 #### Rival 3 Gen 2 (`0x1870`, wired): Phase 0 status, 2026-11-16
 
-- Hardware result (owner, Linux (Ubuntu 24.04), 2026-11-16, a downloaded release binary, firmware not recorded):
-  `ssgg mouse color <colour>` lit every LED of the mouse in the requested colour. That code sends one
-  `21 <mask> R G B` frame per zone (`21 01 ..`, `21 02 00 00 00 ..`, `21 04 00 00 00 00 00 00 ..`), all with the same
-  colour, so this confirms one colour on all three zones only. The mouse also runs a stored reactive effect: a white
-  wave travels front to back on each click, unaffected by the colour; `ssgg` has no command for it. A colour per
-  zone, persistence after replug, sleep or restart, and every other PID are untested.
+- Hardware result (owner, Linux, 2026-11-16, a downloaded release binary, firmware not recorded; every release
+  from v0.1.9, the first with mice, to v0.1.21 builds the colour frames identically): `ssgg mouse color <colour>`
+  lit every LED of the mouse in the requested colour. That code sends one `21 <mask> R G B` frame per zone
+  (`21 01 ..`, `21 02 00 00 00 ..`, `21 04 00 00 00 00 00 00 ..`), all with the same colour, so this confirms one
+  colour on all three zones only. The owner also saw a white wave run front to back on each click; its source is
+  unknown (rivalcfg names `26` the reactive colour, `26 00 00 00 00 00` turning it off, and `27` the default
+  lighting at startup; unverified), and `ssgg` has no command for either. A colour per zone, persistence after
+  replug, sleep or restart, and every other PID are untested. Third-party, unverified: rivalcfg's docs say this
+  mouse keeps no colour in its on-board memory (only the startup lighting set with `27`), and a comment on rivalcfg
+  issue #249 (2025-07-15, frame not given) saw a zone-3 write turn zones 1 and 2 off; the owner's all-zone result,
+  whose last frame was the zone-3 one, did not show that for `ssgg`'s frame.
+- Since that binary, the colour path also drops queued reports and reads an echo between the frames (added
+  2026-11-16, not yet released): re-run `ssgg mouse color <colour>` from such a build in the Phase 0 test.
 - Added 2026-11-16, all [EXPERIMENTAL] and not yet run from `ssgg`: the 0-based DPI preset (`34 01 00 <x> <y>`,
   rivalcfg PR #292), DPI stages, per-zone colour (`--zone 1|2|3`; rivalcfg names the zones top, middle and bottom),
   the `90 00` and `AB` queries (`ssgg mouse info [--poll-rate]`) and the echo read after every setting.
 - GG's capture of this mouse (the USBPcap text attached to rivalcfg issue #249, 2025-07-29: GG opening the mouse on
-  Windows), in order: `90 00`, answered `90 31 2e 31 2e 36 20 2b 65 35 37 66 66 36 61 31` (`1.1.6 +e57ff6a1`);
-  `2a 01 00 00 00 00 02 ..` (not decoded); `21 07 0b 00 21 0b 00 21 0b 00 21`, all three zones in one frame (mask
-  `07`, then one RGB triple per zone), a form `ssgg` does not send; `34 01 00 3e 3e`, one stage at 2700 DPI with
-  preset byte 0, as `ssgg` now sends it; `26 00` (not decoded); `2b 01` (1000 Hz); then `11 00`, the save to
-  on-board memory, which `ssgg` never sends. Every frame went out as a 64-byte zero-padded `SET_REPORT` on
-  interface 3 (`ssgg` sends its settings unpadded) and was answered on endpoint 0x84 about 1 ms later, each setting
-  with `<opcode> 00`. After the DPI frame an unsolicited `ad 01 00 3e` arrived on endpoint 0x83, another interface.
+  Windows; the PID comes from the issue, the capture does not decode the descriptors), in order: `90 00`, answered
+  `90 31 2e 31 2e 36 20 2b 65 35 37 66 66 36 61 31` (`1.1.6 +e57ff6a1`); `2a 01 00 00 00 00 02 ..` (rivalcfg: the
+  button mapping, unverified); `21 07 0b 00 21 0b 00 21 0b 00 21`, all three zones in one frame (mask `07`, then one
+  RGB triple per zone), a form `ssgg` does not send; `34 01 00 3e 3e`, one stage at 2700 DPI with preset byte 0, as
+  `ssgg` now builds it (unit test); `26` and zeros (rivalcfg: reactive colour off, unverified); `2b 01` (1000 Hz);
+  then `11 00`, the save to on-board memory, which `ssgg` never sends. Every frame went out as a 64-byte
+  zero-padded `SET_REPORT` on interface 3 (`ssgg` sends its settings unpadded) and was answered on endpoint 0x84:
+  each setting with `<opcode> 00` 1-2 ms later, the `11 00` save after 28 ms, the `90 00` query with the version.
+  After the DPI frame an unsolicited `ad 01 00 3e` arrived on endpoint 0x83, another interface.
 
 ---
 
