@@ -793,8 +793,8 @@ pub(crate) enum MouseAction {
     /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (range and step depend on the model, e.g. 100
     /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, EXPERIMENTAL)
     Dpi {
-        /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which replaces any
-        /// stages set before
+        /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which in rivalcfg's
+        /// format replaces any stages set before (EXPERIMENTAL, unverified on hardware)
         #[arg(value_name = "DPI", required = true, num_args = 1..=5)]
         values: Vec<u16>,
 
