@@ -470,12 +470,12 @@ pub fn decode_battery(reply: &[u8]) -> Option<u8> {
 
 /// [EXPERIMENTAL] The part of a wired mouse's input report that answers `opcode`: the report itself when it starts
 /// with the opcode, as every answer in GG's capture of a Rival 3 Gen 2 does (`90 31 2e ..` to `90 00`, `21 00` to
-/// a colour frame), or the bytes behind a leading report number 0, which some backends keep. `None` for a report
-/// that answers something else.
+/// a colour frame). hidapi hands these reports over without a report number (the mice declare no report IDs, and
+/// its Windows backend strips the 0 the OS puts in front), so a report starting `00 <opcode>` answers something
+/// else. `None` for a report that answers something else.
 pub fn reply_body(report: &[u8], opcode: u8) -> Option<&[u8]> {
     match report {
         [first, ..] if *first == opcode => Some(report),
-        [0x00, second, ..] if *second == opcode => report.get(1..),
         _ => None,
     }
 }
@@ -1162,8 +1162,8 @@ mod tests {
 
         let mut numbered = vec![0x00];
         numbered.extend_from_slice(&reply);
-        assert_eq!(reply_body(&numbered, 0x90), Some(&reply[..]));
-        assert_eq!(decode_firmware_reply(&numbered).as_deref(), Some("1.1.6 +e57ff6a1"));
+        assert_eq!(reply_body(&numbered, 0x90), None, "hidapi hands over no report number");
+        assert_eq!(decode_firmware_reply(&numbered), None);
 
         assert_eq!(reply_body(&reply, 0x21), None);
         assert_eq!(reply_body(&[], 0x90), None);
@@ -1191,8 +1191,12 @@ mod tests {
         let mut numbered = vec![0x00];
         numbered.extend_from_slice(&captured_firmware_reply());
         let mut reports = Reports::new(vec![captured_echo(0x2B), numbered]);
-        let reply = await_reply(|buffer| reports.read(buffer), 0x90).unwrap().unwrap();
-        assert_eq!(reply, captured_firmware_reply(), "report number 0 in front is dropped");
+        assert_eq!(
+            await_reply(|buffer| reports.read(buffer), 0x90).unwrap(),
+            None,
+            "a report starting 00 90 answers something else"
+        );
+        assert_eq!(reports.reads, 3);
     }
 
     #[test]
@@ -1252,7 +1256,7 @@ mod tests {
             assert_eq!(model.decode_poll_rate_reply(&reply), Some(hz), "{level}");
             let mut numbered = vec![0x00];
             numbered.extend_from_slice(&reply);
-            assert_eq!(model.decode_poll_rate_reply(&numbered), Some(hz), "{level}");
+            assert_eq!(model.decode_poll_rate_reply(&numbered), None, "{level}");
         }
         for reply in [&[0xAB, 0x00][..], &[0xAB, 0x05], &[0xAB], &[0x01], &[0x2B, 0x01], &[]] {
             assert_eq!(model.decode_poll_rate_reply(reply), None, "{reply:02x?}");
