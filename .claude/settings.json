@@ -13,18 +13,95 @@
       "Bash(tshark *)",
       "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
     ],
-    "ask": ["Bash(git reset --hard *)", "Bash(ssgg onboard write *)", "Bash(cargo run * onboard write *)"],
-    "deny": ["Bash(git push --force *)", "Bash(git push -f *)"]
+    "ask": [
+      "Bash(git reset --hard *)",
+      "Bash(*ssgg* onboard write*)",
+      "Bash(cargo run* onboard write*)",
+      "Bash(*ssgg* onboard load*)",
+      "Bash(cargo run* onboard load*)",
+      "Bash(*ssgg* onboard gen3-write*)",
+      "Bash(cargo run* onboard gen3-write*)",
+      "Bash(*ssgg* onboard gen3-restore*)",
+      "Bash(cargo run* onboard gen3-restore*)",
+      "Bash(*ssgg* onboard gen3-activate*)",
+      "Bash(cargo run* onboard gen3-activate*)",
+      "Bash(*ssgg* device region*)",
+      "Bash(cargo run* device region*)",
+      "Bash(*ssgg* device meta-key*)",
+      "Bash(cargo run* device meta-key*)",
+      "Bash(*ssgg* keymap set*)",
+      "Bash(cargo run* keymap set*)",
+      "Bash(*ssgg* keymap reset*)",
+      "Bash(cargo run* keymap reset*)",
+      "Bash(*ssgg* actuation *)",
+      "Bash(cargo run* actuation *)",
+      "Bash(*ssgg* oled show*--onboard*)",
+      "Bash(cargo run* oled show*--onboard*)",
+      "Bash(*ssgg* fuzz*)",
+      "Bash(cargo run* fuzz*)",
+      "Bash(*cargo *--bin*discover_actuation*)",
+      "Bash(*target/*/discover_actuation*)",
+      "Bash(*cargo *--bin*verify_key_mapping*)",
+      "Bash(*target/*/verify_key_mapping*)",
+      "Bash(discover_actuation*)",
+      "Bash(*./discover_actuation*)",
+      "Bash(verify_key_mapping*)",
+      "Bash(*./verify_key_mapping*)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(*ssgg* onboard write*)",
+      "PowerShell(cargo run* onboard write*)",
+      "PowerShell(*ssgg* onboard load*)",
+      "PowerShell(cargo run* onboard load*)",
+      "PowerShell(*ssgg* onboard gen3-write*)",
+      "PowerShell(cargo run* onboard gen3-write*)",
+      "PowerShell(*ssgg* onboard gen3-restore*)",
+      "PowerShell(cargo run* onboard gen3-restore*)",
+      "PowerShell(*ssgg* onboard gen3-activate*)",
+      "PowerShell(cargo run* onboard gen3-activate*)",
+      "PowerShell(*ssgg* device region*)",
+      "PowerShell(cargo run* device region*)",
+      "PowerShell(*ssgg* device meta-key*)",
+      "PowerShell(cargo run* device meta-key*)",
+      "PowerShell(*ssgg* keymap set*)",
+      "PowerShell(cargo run* keymap set*)",
+      "PowerShell(*ssgg* keymap reset*)",
+      "PowerShell(cargo run* keymap reset*)",
+      "PowerShell(*ssgg* actuation *)",
+      "PowerShell(cargo run* actuation *)",
+      "PowerShell(*ssgg* oled show*--onboard*)",
+      "PowerShell(cargo run* oled show*--onboard*)",
+      "PowerShell(*ssgg* fuzz*)",
+      "PowerShell(cargo run* fuzz*)",
+      "PowerShell(*cargo *--bin*discover_actuation*)",
+      "PowerShell(*target*discover_actuation*)",
+      "PowerShell(*cargo *--bin*verify_key_mapping*)",
+      "PowerShell(*target*verify_key_mapping*)",
+      "PowerShell(discover_actuation*)",
+      "PowerShell(*.\\discover_actuation*)",
+      "PowerShell(verify_key_mapping*)",
+      "PowerShell(*.\\verify_key_mapping*)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git push -f *)"
+    ]
   },
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git push*)",
-            "command": "echo 'REMINDER: run the ci-matrix skill (fmt, clippy across features, tests, build) before pushing.'"
+            "if": "Bash(git *push*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/remind.sh\" git-push"
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(git *push*)",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/remind.sh\" git-push"
           }
         ]
       },
@@ -37,33 +114,7 @@
           },
           {
             "type": "command",
-            "if": "Edit(*hid_reports.rs)",
-            "command": "echo 'REMINDER: Only use HidReportBuilder typed helpers. Never construct raw byte arrays by hand. See src/devices/hid_reports.rs.'"
-          },
-          {
-            "type": "command",
-            "if": "Write(*hid_reports.rs)",
-            "command": "echo 'REMINDER: Only use HidReportBuilder typed helpers. Never construct raw byte arrays by hand. See src/devices/hid_reports.rs.'"
-          },
-          {
-            "type": "command",
-            "if": "Edit(*apex_pro_tkl_2023_profile.rs)",
-            "command": "echo 'REMINDER: never send the on-board profile blob to hardware; no read-back exists, so a write replaces the board settings. Code may build blobs only.'"
-          },
-          {
-            "type": "command",
-            "if": "Edit(*src/commands/onboard.rs)",
-            "command": "echo 'REMINDER: persistent device writes only on explicit request (onboard write --yes) and only on a family whose write sequence is hardware-confirmed.'"
-          },
-          {
-            "type": "command",
-            "if": "Edit(*Cargo.toml)",
-            "command": "echo 'REMINDER: hidapi must keep its exact = version pin in Cargo.toml (CLAUDE.md hard constraint). Changing it requires explicit task justification.'"
-          },
-          {
-            "type": "command",
-            "if": "Write(*Cargo.toml)",
-            "command": "echo 'REMINDER: hidapi must keep its exact = version pin in Cargo.toml (CLAUDE.md hard constraint). Changing it requires explicit task justification.'"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/remind.sh\""
           }
         ]
       }
@@ -79,36 +130,18 @@
           {
             "type": "command",
             "if": "Edit(*Cargo.toml)",
-            "command": "grep '^hidapi = ' Cargo.toml | grep -v 'version = \"=' && echo 'WARNING: hidapi is no longer pinned with an exact = version; that needs explicit task justification.' || exit 0"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-check.sh\" pin"
           },
           {
             "type": "command",
             "if": "Write(*Cargo.toml)",
-            "command": "grep '^hidapi = ' Cargo.toml | grep -v 'version = \"=' && echo 'WARNING: hidapi is no longer pinned with an exact = version; that needs explicit task justification.' || exit 0"
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-check.sh\" pin"
           },
           {
             "type": "command",
-            "if": "Edit(*src/devices*.rs)",
-            "command": "out=$(cargo clippy --all-targets --locked --message-format short -- -D warnings 2>&1) || { printf '%s\n' \"$out\" | tail -40; exit 2; }",
-            "async": true
-          },
-          {
-            "type": "command",
-            "if": "Write(*src/devices*.rs)",
-            "command": "out=$(cargo clippy --all-targets --locked --message-format short -- -D warnings 2>&1) || { printf '%s\n' \"$out\" | tail -40; exit 2; }",
-            "async": true
-          },
-          {
-            "type": "command",
-            "if": "Edit(*tools/profile-gui/*)",
-            "command": "out=$(node tools/profile-gui/selftest.mjs 2>&1) || { printf '%s\n' \"$out\" | tail -40; exit 2; }",
-            "async": true
-          },
-          {
-            "type": "command",
-            "if": "Write(*tools/profile-gui/*)",
-            "command": "out=$(node tools/profile-gui/selftest.mjs 2>&1) || { printf '%s\n' \"$out\" | tail -40; exit 2; }",
-            "async": true
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/post-check.sh\" build",
+            "async": true,
+            "asyncRewake": true
           }
         ]
       }
