@@ -199,7 +199,8 @@ Notes:
 - Quit SteelSeries GG before using `ssgg rgb`. GG's engine keeps rewriting the lighting and overrides `ssgg`;
   `ssgg rgb` prints a warning while `SteelSeriesEngine.exe` is running. End every `SteelSeries*` process in Task
   Manager, or the engine restarts itself.
-- The `audio` feature needs PulseAudio and does not build on Windows. `--features sonar` works.
+- The `audio` feature builds on Windows but applies nothing (the PulseAudio backend is Linux-only).
+  `--features sonar` works.
 - There is no Windows service; run `ssgg daemon` in a terminal or from Task Scheduler at logon.
 - Config file: `%APPDATA%\steelseries-gg\ssgg\config\config.toml`.
 - `ssgg pollrate status` reports "unsupported on this driver" for USB devices; Windows HID drivers do not expose the

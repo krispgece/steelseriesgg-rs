@@ -10,7 +10,7 @@ Protocol facts for the Apex Pro TKL 2023 are in `AGENTS.md` ("Protocol research 
 
 ## Baseline (verified 2026-10-15, Windows)
 
-- `cargo clippy-ci` (alias for `clippy --all-targets --locked -- -D warnings`): clean.
+- `cargo clippy --all-targets --locked -- -D warnings` (the `cargo clippy-ci` alias until 2026-10-30): clean.
 - `cargo test --locked`: 303 passed, 2 ignored (Windows, branch `feat/backlog-2026-10`, 2026-10-21); 311 passed, 2
   ignored on Linux with `--features remap` (WSL Ubuntu, before the last review-fix commit).
 - Linux `cargo clippy --all-targets -- -D warnings`, also with `--features sonar`: clean (WSL, 2026-10-15).
@@ -26,7 +26,8 @@ Protocol facts for the Apex Pro TKL 2023 are in `AGENTS.md` ("Protocol research 
 - Stop GG before any `ssgg rgb` test on Windows (kill every `SteelSeries*` process); GG overwrites lighting at ~19 fps.
 - Protocol labels: anything not confirmed on hardware stays `[EXPERIMENTAL]` / `[PLACEHOLDER]`. Promotion needs a
   commit naming the device model and test date.
-- Run `cargo fmt --all -- --check`, `cargo clippy-ci` and `cargo test --locked` after every code change. `cfg(unix)`
+- Run `cargo fmt --all -- --check`, `cargo clippy --all-targets --locked -- -D warnings` and `cargo test --locked`
+  after every code change (not `cargo clippy-ci`: it adds `--all-features --fix` and can rewrite files). `cfg(unix)`
   code does not compile on Windows; check it in WSL (`CARGO_TARGET_DIR` outside `/mnt/c`).
 
 ---
