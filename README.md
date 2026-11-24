@@ -44,9 +44,12 @@ systemctl --user enable --now ssgg.service
 - Experimental, never run on hardware (community-fork protocol data): Apex 9 TKL / Mini, Apex M750 (solid colour only),
   Apex 5 / Apex 7 TKL / Apex Pro TKL lighting
 
-### Mice (experimental, `ssgg mouse`)
-- Aerox 3 / 5 / 9 (incl. wireless), Prime Mini / Prime Wireless, Rival 3 Gen 2, Rival 5: DPI, poll rate, colour, battery.
-  Settings are not saved to the mouse's memory.
+### Mice (`ssgg mouse`)
+- Rival 3 Gen 2 (wired, `0x1870`), tested on hardware (Linux, 2026-11-17/18; Windows untested): DPI, 2 or 4 DPI
+  stages, poll rate (125 and 1000 Hz), colour on all zones or one, firmware version. `ssgg` sends no save command,
+  but this mouse keeps its DPI stages after unplugging; colour and poll rate return to the mouse's own.
+- Experimental, never run on hardware (community-fork protocol data): Aerox 3 / 5 / 9 (incl. wireless), Prime Mini /
+  Prime Wireless, Rival 5: DPI, poll rate, colour, battery.
 
 ### Headsets
 - Arctis 1 / Arctis 1 Wireless

@@ -95,9 +95,9 @@ pub enum CommandCode {
     /// endpoint with the ASCII firmware version. The source byte selects which firmware answers -
     /// [`FirmwareSource::Keyboard`] (`90 00`) the keyboard's, [`FirmwareSource::Led`] (`90 01`) the LED
     /// controller's. See [`OnboardFirmwareVersionCommand`]. Confirmed on hardware on an Apex 7 (`0x1612`).
-    /// [EXPERIMENTAL] on Modern-family mice: `mice::modern` sends [`OnboardFirmwareVersionCommand::KEYBOARD`] as
-    /// the read-only firmware query of the wired models without a wireless mode, never from `ssgg` on hardware; the
-    /// confirmed status and the `FIRMWARE_VERSION` label are the Apex 7's.
+    /// On Modern-family mice `mice::modern` sends [`OnboardFirmwareVersionCommand::KEYBOARD`] as the read-only
+    /// firmware query of the wired models without a wireless mode: confirmed on a wired Rival 3 Gen 2 (`0x1870`,
+    /// owner, Linux, 2026-11-17), [EXPERIMENTAL] on the other models. The `FIRMWARE_VERSION` label is the Apex 7's.
     OnboardFirmwareVersion = 0x90,
     /// `[EXPERIMENTAL]` Legacy Apex driver mode (0x6C): GG's engine writes `6c 00 01` when it opens a
     /// device (`DriverModeEnable` in its init-sequence descriptor, the fourth frame of its opening
@@ -130,28 +130,33 @@ pub enum CommandCode {
     /// [EXPERIMENTAL] Nova Pro Wireless family battery query (0xB7, `06 b7`), see
     /// [`HeadsetBatteryQueryCommand`]. From GG's decrypted device specs, untested on hardware.
     HeadsetProBattery = 0xB7,
-    /// [EXPERIMENTAL] Modern-family mouse polling rate (0x2B, `00 2b <code>`; 0x6B on a 2.4 GHz receiver PID),
-    /// see [`MousePollRateCommand`]. From a community rivalcfg-derived fork, untested on hardware.
+    /// Modern-family mouse polling rate (0x2B, `00 2b <code>`; 0x6B on a 2.4 GHz receiver PID), see
+    /// [`MousePollRateCommand`]. From a community rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2,
+    /// owner, Linux, 2026-11-17) for 125 and 1000 Hz; [EXPERIMENTAL] for 250 and 500 Hz and on every other PID.
     MousePollRate = 0x2B,
     /// [EXPERIMENTAL] Modern-family mouse battery query (0x92, `00 92`; 0xD2 on a 2.4 GHz receiver PID), see
     /// [`MouseBatteryQueryCommand`]. From a community rivalcfg-derived fork, untested on hardware.
     MouseBattery = 0x92,
-    /// [EXPERIMENTAL] Modern-family mouse polling-rate read-back (0xAB, `00 ab` zero padded), see
-    /// [`MousePollRateQueryCommand`]. From Mousework's read-only probe, untested on hardware.
+    /// Modern-family mouse polling-rate read-back (0xAB, `00 ab` zero padded), see [`MousePollRateQueryCommand`].
+    /// From Mousework's read-only probe. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux, 2026-11-17) for
+    /// levels 1 and 4 (1000, 125 Hz); [EXPERIMENTAL] for levels 2 and 3 and on every other PID.
     MousePollRateQuery = 0xAB,
-    /// [EXPERIMENTAL] Modern-family mouse DPI, see [`MouseDpiCommand`]. A tag, never a wire byte: the wire opcode
-    /// is 0x2D on every model but the Rival 3 Gen 2 (0x34), and 0x2D already belongs to
-    /// [`CommandCode::ActuationControl`]. From a community rivalcfg-derived fork, untested on hardware.
+    /// Modern-family mouse DPI, see [`MouseDpiCommand`]. A tag, never a wire byte: the wire opcode is 0x2D on every
+    /// model but the Rival 3 Gen 2 (0x34), and 0x2D already belongs to [`CommandCode::ActuationControl`]. From a
+    /// community rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux, 2026-11-17/18)
+    /// for one stage, which the mouse keeps across a replug; [EXPERIMENTAL] on every other PID.
     MouseDpi = 0xF2,
     /// Modern-family mouse LED colour, see [`MouseColorCommand`]. A tag, never a wire byte: the
     /// wire opcode is 0x21 (0x61 on a 2.4 GHz receiver PID), which belong to
     /// [`CommandCode::RgbControl`] and [`CommandCode::Apex2023DirectWireless`]. From a community
-    /// rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, 2026-11-16) for one colour on all
-    /// three zones; [EXPERIMENTAL] for a colour per zone and on every other PID.
+    /// rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux, 2026-11-16 and 2026-11-17/18)
+    /// for one colour on all three zones and for one zone; [EXPERIMENTAL] on every other PID.
     MouseColor = 0xF3,
-    /// [EXPERIMENTAL] Modern-family mouse DPI stages, see [`MouseDpiStagesCommand`]. A tag, never a wire byte: the
-    /// wire opcode is the model's DPI opcode (0x34 on the Rival 3 Gen 2, the only model it is built for), which
-    /// already belongs to [`CommandCode::SetProfileVolatile`]. From rivalcfg, untested from `ssgg` on hardware.
+    /// Modern-family mouse DPI stages, see [`MouseDpiStagesCommand`]. A tag, never a wire byte: the wire opcode is
+    /// the model's DPI opcode (0x34 on the Rival 3 Gen 2, the only model it is built for), which already belongs to
+    /// [`CommandCode::SetProfileVolatile`]. From rivalcfg. Confirmed on `0x1870` (owner, Linux, 2026-11-17/18) for 2
+    /// stages with the first active and 4 with the second active (the four survived a replug); [EXPERIMENTAL] for
+    /// other counts and active stages.
     MouseDpiStages = 0xF6,
     /// [EXPERIMENTAL] Apex 3 (`0x161A`) lighting, see [`Apex3Command`]. A tag, never a wire byte: the frames use
     /// `0x0B` (colours) and `0x0A` (brightness). From GG's decrypted device spec, never sent on hardware.
@@ -2472,9 +2477,11 @@ const fn mouse_opcode(base: u8, dongle: bool) -> u8 {
     if dongle { base | MOUSE_DONGLE_FLAG } else { base }
 }
 
-/// [EXPERIMENTAL] Modern-family mouse polling rate: `00 <0x2B> <code>`, 0x6B on a 2.4 GHz receiver PID. `code`
-/// is 4 to 1 for 125 to 1000 Hz on most models and 3 to 0 on the wireless ones, so the model table picks it.
-/// Source: community rivalcfg-derived fork, never sent from `ssgg` on hardware.
+/// Modern-family mouse polling rate: `00 <0x2B> <code>`, 0x6B on a 2.4 GHz receiver PID. `code` is 4 to 1 for 125
+/// to 1000 Hz on most models and 3 to 0 on the wireless ones, so the model table picks it. Source: community
+/// rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux, 2026-11-17) for 125 and
+/// 1000 Hz, measured by counting reports; the mouse does not keep the rate across a replug. [EXPERIMENTAL] for 250
+/// and 500 Hz and on every other PID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MousePollRateCommand {
     pub dongle: bool,
@@ -2551,10 +2558,12 @@ impl HidCommand for MouseBatteryQueryCommand {
     }
 }
 
-/// [EXPERIMENTAL] Modern-family mouse polling-rate read-back: `00 <0xAB>`, zero padded to 64 bytes behind the
-/// report ID like GG's and Mousework's queries. Read-only, for the wired models without a wireless mode;
-/// `mice::modern` decodes the reply. Source: Mousework's read-only probe (`mousework/probe.py`), which sends `AB`
-/// to those models and maps the level 1, 2, 3, 4 to 1000, 500, 250, 125 Hz; never sent from `ssgg` on hardware.
+/// Modern-family mouse polling-rate read-back: `00 <0xAB>`, zero padded to 64 bytes behind the report ID like GG's
+/// and Mousework's queries. Read-only, for the wired models without a wireless mode; `mice::modern` decodes the
+/// reply. Source: Mousework's read-only probe (`mousework/probe.py`), which sends `AB` to those models and maps the
+/// level 1, 2, 3, 4 to 1000, 500, 250, 125 Hz. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux,
+/// 2026-11-17): `ab 01` at 1000 Hz and `ab 04` at 125 Hz, the level behind the echoed opcode. [EXPERIMENTAL] for
+/// levels 2 and 3 and on the other wired-only models.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MousePollRateQueryCommand;
 
@@ -2580,10 +2589,12 @@ impl HidCommand for MousePollRateQueryCommand {
     }
 }
 
-/// [EXPERIMENTAL] Modern-family mouse DPI, one stage: `00 <opcode> 01 <selected> <code>`. `code` is one byte, or
-/// two little-endian bytes when `wide`, and is repeated for the Y axis when `per_axis`. The opcode is 0x2D, or
-/// 0x34 on the Rival 3 Gen 2; a 2.4 GHz receiver PID sets [`MOUSE_DONGLE_FLAG`] on it. Source: community
-/// rivalcfg-derived fork, never sent from `ssgg` on hardware.
+/// Modern-family mouse DPI, one stage: `00 <opcode> 01 <selected> <code>`. `code` is one byte, or two
+/// little-endian bytes when `wide`, and is repeated for the Y axis when `per_axis`. The opcode is 0x2D, or 0x34 on
+/// the Rival 3 Gen 2; a 2.4 GHz receiver PID sets [`MOUSE_DONGLE_FLAG`] on it. Source: community rivalcfg-derived
+/// fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux, 2026-11-17/18): 400 and 3200 DPI by feel, and
+/// the mouse keeps the stage across a replug with no save command, replacing the stages it held. [EXPERIMENTAL] on
+/// every other PID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseDpiCommand {
     pub opcode: u8,
@@ -2643,12 +2654,14 @@ impl HidCommand for MouseDpiCommand {
     }
 }
 
-/// [EXPERIMENTAL] Modern-family mouse DPI stages, 1 to [`Self::MAX_STAGES`] in one frame:
+/// Modern-family mouse DPI stages, 1 to [`Self::MAX_STAGES`] in one frame:
 /// `00 <opcode> <count> <first_preset + active> <code 1> .. <code count>`, nothing padded. Each code is encoded as in
 /// [`MouseDpiCommand`] (two little-endian bytes when `wide`, sent twice when `per_axis`, so `x1 y1 x2 y2 ..` with
 /// both axes equal), and one stage gives that command's frame byte for byte. Source: rivalcfg master's
-/// `multidpi_range_choice_xy` handler and its Rival 3 Gen 2 test vectors (2026-11-16); never sent from `ssgg` on
-/// hardware.
+/// `multidpi_range_choice_xy` handler and its Rival 3 Gen 2 test vectors (2026-11-16). Confirmed on `0x1870`
+/// (wired Rival 3 Gen 2, owner, Linux, 2026-11-17/18) for 2 stages with `active` 0 and 4 stages with `active` 1:
+/// the DPI button cycles through them, and the four stages survived a replug with no save command. [EXPERIMENTAL]
+/// for other counts and active stages.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MouseDpiStagesCommand {
     pub opcode: u8,
@@ -2756,11 +2769,11 @@ pub enum MouseColorLayout {
     Single,
 }
 
-/// Modern-family mouse LED colour for one zone, in the [`MouseColorLayout`] of the model. A
-/// 2.4 GHz receiver PID sets [`MOUSE_DONGLE_FLAG`] on the opcode. Source: community rivalcfg-derived fork.
-/// Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, 2026-11-16) with the same colour sent to all three zones;
-/// [EXPERIMENTAL] for a colour per zone and on every other PID. `validate` bounds `zone` by the layout only (7 for
-/// `Mask8`, 15 for `Mask16`); the model's zone count (3 on the Rival 3 Gen 2) is checked by
+/// Modern-family mouse LED colour for one zone, in the [`MouseColorLayout`] of the model. A 2.4 GHz receiver PID sets
+/// [`MOUSE_DONGLE_FLAG`] on the opcode. Source: community rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3
+/// Gen 2, owner, Linux, 2026-11-16 and 2026-11-17/18) with one colour on all three zones and with one zone (`zone` 0 is
+/// the front, 1 the middle, 2 the rear); [EXPERIMENTAL] on every other PID. `validate` bounds `zone` by the layout only
+/// (7 for `Mask8`, 15 for `Mask16`); the model's zone count (3 on the Rival 3 Gen 2) is checked by
 /// `mice::modern::MouseModel::zone_color_command`, which builds the command for one zone of a model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MouseColorCommand {

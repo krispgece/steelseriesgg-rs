@@ -69,8 +69,8 @@ pub(crate) enum Commands {
         action: HeadsetAction,
     },
 
-    /// Control Modern-family mice: Aerox, Prime Mini/Wireless, Rival 3 Gen 2, Rival 5 (EXPERIMENTAL; only one colour
-    /// on all zones of a wired Rival 3 Gen 2 is hardware-confirmed)
+    /// Control Modern-family mice: Aerox, Prime Mini/Wireless, Rival 3 Gen 2, Rival 5 (EXPERIMENTAL; partly confirmed
+    /// on a wired Rival 3 Gen 2, the only model tested on hardware)
     Mouse {
         #[command(subcommand)]
         action: MouseAction,
@@ -791,10 +791,11 @@ pub(crate) enum MouseAction {
     Status,
 
     /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (range and step depend on the model, e.g. 100
-    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, EXPERIMENTAL)
+    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, 2 and 4 tested). A wired Rival 3 Gen 2 keeps
+    /// them after unplugging, in place of the stages it had, which cannot be read back first
     Dpi {
-        /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which in rivalcfg's
-        /// format replaces any stages set before (EXPERIMENTAL, unverified on hardware)
+        /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which replaces any
+        /// stages set before (seen on a wired Rival 3 Gen 2)
         #[arg(value_name = "DPI", required = true, num_args = 1..=5)]
         values: Vec<u16>,
 
@@ -809,21 +810,20 @@ pub(crate) enum MouseAction {
         hz: u16,
     },
 
-    /// Set every LED zone, or one with --zone (EXPERIMENTAL), to one colour
+    /// Set every LED zone, or one with --zone, to one colour (EXPERIMENTAL except on a wired Rival 3 Gen 2)
     Color {
         /// Colour name or hex (e.g. red, FF8800)
         color: String,
 
-        /// Only this LED zone (EXPERIMENTAL, untested on hardware), 1-based up to the model's zone count (Rival 3
-        /// Gen 2: 1 to 3, which rivalcfg names top, middle and bottom)
+        /// Only this LED zone, 1-based up to the model's zone count (Rival 3 Gen 2: 1 front, 2 middle, 3 rear)
         #[arg(long, value_name = "N")]
         zone: Option<u8>,
     },
 
     /// Show the model, USB id and firmware version (read-only queries, wired models without a wireless mode only;
-    /// EXPERIMENTAL)
+    /// EXPERIMENTAL except on a Rival 3 Gen 2)
     Info {
-        /// Also read the polling rate back from the mouse (EXPERIMENTAL: the reply layout is unverified)
+        /// Also read the polling rate back from the mouse (EXPERIMENTAL except 1000 and 125 Hz on a Rival 3 Gen 2)
         #[arg(long)]
         poll_rate: bool,
     },

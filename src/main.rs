@@ -483,7 +483,9 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
     println!("Using mouse: {}", mouse_info.name);
     eprintln!(
         "{}",
-        "[EXPERIMENTAL] Mouse commands come from a community rivalcfg-derived fork; only one colour on all zones of a wired Rival 3 Gen 2 (0x1870) is confirmed on hardware. Settings apply to the running mouse and are not saved to its memory."
+        "[EXPERIMENTAL] Mouse commands come from a community rivalcfg-derived fork; only a wired Rival 3 Gen 2 \
+         (0x1870) has been tested on hardware. ssgg sends no save command, but that mouse keeps its DPI stages after \
+         unplugging (they cannot be read back first); colour and polling rate return to its own."
             .yellow()
     );
     warn_if_gg_engine_running();
@@ -571,7 +573,8 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
 
 /// [EXPERIMENTAL] How many frames of the setting just sent a wired mouse echoed, and their status bytes; `None` when
 /// nothing was read (a 2.4 GHz receiver, or no setting). A missing echo is not an error: the frames were sent. Only
-/// status `00` has been seen (GG's capture of a Rival 3 Gen 2), so the line reads no success or failure into it.
+/// status `00` has been seen (a wired Rival 3 Gen 2, in GG's capture and from `ssgg`), so the line reads no success
+/// or failure into it.
 fn acknowledgement_line(acks: &[SettingAck]) -> Option<String> {
     if acks.is_empty() {
         return None;

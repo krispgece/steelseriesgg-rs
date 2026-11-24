@@ -1,18 +1,20 @@
-//! [EXPERIMENTAL] Modern-family SteelSeries mice: Aerox 3/5/9, Prime Mini, Prime Wireless, Rival 3 Gen 2, Rival 5.
+//! Modern-family SteelSeries mice: Aerox 3/5/9, Prime Mini, Prime Wireless, Rival 3 Gen 2, Rival 5.
 //!
-//! The whole protocol comes from a community fork derived from rivalcfg. Only the colour frames have been run on
-//! hardware: one colour on all three zones of a wired Rival 3 Gen 2 (owner, 2026-11-16).
+//! The whole protocol comes from a community fork derived from rivalcfg. Only the wired Rival 3 Gen 2 (`0x1870`)
+//! has been tested on hardware (owner, Linux, 2026-11-16 to 18; status per frame in
+//! `.claude/rules/experimental-protocol.md`); every other model is [EXPERIMENTAL].
 //! Commands are output reports `00 <opcode> <args>` on the model's control interface: settings of variable length,
 //! unpadded, the read-only queries zero padded to 64 bytes.
 //! The 2.4 GHz receiver PID of a wireless mouse sets bit 0x40 on every opcode and answers each setting with
 //! a 64-byte report that is read and dropped. The save command `11 00` (write to on-board memory) is never
-//! sent and not implemented.
+//! sent and not implemented; a wired Rival 3 Gen 2 keeps its DPI stages across a replug without it, not its colour
+//! or polling rate.
 //!
-//! [EXPERIMENTAL] A wired mouse echoes each setting as `<opcode> 00` in GG's capture of a wired Rival 3 Gen 2 (the
-//! USBPcap text attached to rivalcfg issue #249, 2025-07-29; the PID comes from the issue, the capture does not
-//! decode the descriptors); the echo is read after every frame and kept as a [`SettingAck`], and a missing one is
-//! not an error. The read-only firmware (`90 00`) and polling-rate (`AB`) queries go only to the models without a
-//! wireless mode.
+//! A wired Rival 3 Gen 2 echoes each setting as `<opcode> 00`, in GG's capture (the USBPcap text attached to
+//! rivalcfg issue #249, 2025-07-29; the PID comes from the issue, the capture does not decode the descriptors) and
+//! to `ssgg`'s own frames (owner, Linux, 2026-11-17/18); other models [EXPERIMENTAL]. The echo is read after every
+//! frame and kept as a [`SettingAck`], and a missing one is not an error. The read-only firmware (`90 00`) and
+//! polling-rate (`AB`) queries go only to the models without a wireless mode.
 
 use super::dpi_tables::{TRUEMOVE_AIR, TRUEMOVE_CORE};
 use super::{Mouse, PollRateReadback, SettingAck, unsupported};
@@ -70,7 +72,7 @@ pub struct DpiSpec {
     pub per_axis: bool,
     /// The model takes several stages in one command ([`MouseDpiStagesCommand`]). Set only where that frame is
     /// evidenced: the Rival 3 Gen 2, by rivalcfg's test vectors and the third-party hardware test (macOS) of the
-    /// two-stage frame in its PR #292; never run from `ssgg`.
+    /// two-stage frame in its PR #292, and from `ssgg` with 2 and 4 stages (owner, Linux, 2026-11-17/18).
     pub multi_stage: bool,
 }
 
@@ -362,8 +364,9 @@ impl MouseModel {
         })
     }
 
-    /// [EXPERIMENTAL] One command for 1 to [`MouseDpiStagesCommand::MAX_STAGES`] DPI stages with stage `active`
-    /// (0-based) running. Refused on a model without [`DpiSpec::multi_stage`].
+    /// One command for 1 to [`MouseDpiStagesCommand::MAX_STAGES`] DPI stages with stage `active` (0-based) running
+    /// (confirmed on a wired Rival 3 Gen 2 for 2 stages with `active` 0 and 4 with `active` 1, the rest
+    /// [EXPERIMENTAL]). Refused on a model without [`DpiSpec::multi_stage`].
     pub fn dpi_stages_command(&self, stages: &[u16], active: u8) -> Result<MouseDpiStagesCommand> {
         let dpi_spec = &self.spec.dpi;
         if !dpi_spec.multi_stage {
@@ -393,7 +396,8 @@ impl MouseModel {
         })
     }
 
-    /// [EXPERIMENTAL] The colour command of one LED zone (0-based), the frame [`Self::color_commands`] sends for it.
+    /// The colour command of one LED zone (0-based), the frame [`Self::color_commands`] sends for it. Confirmed on a
+    /// wired Rival 3 Gen 2 (0 front, 1 middle, 2 rear), [EXPERIMENTAL] on other models.
     pub fn zone_color_command(&self, zone: u8, color: Color) -> Result<MouseColorCommand> {
         let zones = self.spec.zone_count;
         if zone >= zones {
@@ -438,24 +442,26 @@ impl MouseModel {
         !self.dongle && !self.spec.battery
     }
 
-    /// [EXPERIMENTAL] The read-only firmware query, `90 00` zero padded to 64 bytes: GG's own frame to a wired
-    /// Rival 3 Gen 2, which [`OnboardFirmwareVersionCommand::KEYBOARD`] sends byte for byte. `None` on a model with
-    /// a wireless mode: Mousework's probe reads its answer over the cable without the echoed opcode, which
-    /// [`await_reply`] would not take for the reply.
+    /// The read-only firmware query, `90 00` zero padded to 64 bytes: GG's own frame to a wired Rival 3 Gen 2, which
+    /// [`OnboardFirmwareVersionCommand::KEYBOARD`] sends byte for byte; confirmed on a wired `0x1870` (Linux,
+    /// 2026-11-17), [EXPERIMENTAL] on the other wired-only models. `None` on a model with a wireless mode:
+    /// Mousework's probe reads its answer over the cable without the echoed opcode, which [`await_reply`] would not
+    /// take for the reply.
     pub fn firmware_query(&self) -> Option<OnboardFirmwareVersionCommand> {
         self.wired_only().then_some(OnboardFirmwareVersionCommand::KEYBOARD)
     }
 
-    /// [EXPERIMENTAL] The read-only polling-rate query `AB`, from Mousework's probe. `None` on a model with a
-    /// wireless mode.
+    /// The read-only polling-rate query `AB`, from Mousework's probe; confirmed on a wired `0x1870` (Linux,
+    /// 2026-11-17), [EXPERIMENTAL] on the other wired-only models. `None` on a model with a wireless mode.
     pub fn poll_rate_query(&self) -> Option<MousePollRateQueryCommand> {
         self.wired_only().then_some(MousePollRateQueryCommand)
     }
 
-    /// [EXPERIMENTAL] Polling rate in an `AB` reply, taken as `ab <level>` like every other reply of the Rival 3
-    /// Gen 2 in GG's capture, with the level in this model's polling-rate codes (1, 2, 3, 4 = 1000, 500, 250,
-    /// 125 Hz on the wired-only models, the table Mousework gives). Unverified: Mousework reads the level from the
-    /// first byte, as if the reply carried no echo. `None` for another reply or an unknown level.
+    /// Polling rate in an `AB` reply, taken as `ab <level>` like every other reply of the Rival 3 Gen 2 in GG's
+    /// capture, with the level in this model's polling-rate codes (1, 2, 3, 4 = 1000, 500, 250, 125 Hz on the
+    /// wired-only models, the table Mousework gives). A wired `0x1870` answered `ab 01` at 1000 Hz and `ab 04` at
+    /// 125 Hz (Linux, 2026-11-17), so the level follows the echoed opcode, not the first byte where Mousework reads
+    /// it; levels 2 and 3 and the other models are [EXPERIMENTAL]. `None` for another reply or an unknown level.
     pub fn decode_poll_rate_reply(&self, reply: &[u8]) -> Option<u16> {
         let level = *reply_body(reply, CommandCode::MousePollRateQuery as u8)?.get(1)?;
         let index = self.spec.poll_codes.iter().position(|code| *code == level)?;
