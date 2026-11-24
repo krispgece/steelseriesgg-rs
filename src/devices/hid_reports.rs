@@ -2480,8 +2480,8 @@ const fn mouse_opcode(base: u8, dongle: bool) -> u8 {
 /// Modern-family mouse polling rate: `00 <0x2B> <code>`, 0x6B on a 2.4 GHz receiver PID. `code` is 4 to 1 for 125
 /// to 1000 Hz on most models and 3 to 0 on the wireless ones, so the model table picks it. Source: community
 /// rivalcfg-derived fork. Confirmed on `0x1870` (wired Rival 3 Gen 2, owner, Linux, 2026-11-17) for 125 and
-/// 1000 Hz, measured by counting reports; the mouse does not keep the rate across a replug. [EXPERIMENTAL] for 250
-/// and 500 Hz and on every other PID.
+/// 1000 Hz, measured by counting reports; set to 125 Hz right before a replug (2026-11-18), it came back at about
+/// 1000 Hz. [EXPERIMENTAL] for 250 and 500 Hz and on every other PID.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MousePollRateCommand {
     pub dongle: bool,

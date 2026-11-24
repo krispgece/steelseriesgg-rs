@@ -191,9 +191,9 @@ Hardware results, Arctis Nova 7 Gen 2 `0x227E`, Linux, 2026-10-25 (owner test, G
 
 Source: a community fork derived from rivalcfg (data licensed WTFPL/GPL, reimplemented here from the facts, with
 our own test vectors). Only the wired Rival 3 Gen 2 `0x1870` has been run from `ssgg` on hardware (below): colour on
-all zones and on one zone, DPI as one stage and as 2 or 4 stages, polling rate 125 and 1000 Hz, the `90 00` and `AB`
-queries and the echo work there. The rest, and every other model, is Experimental (see
-`.claude/rules/experimental-protocol.md`).
+all zones and on one zone, DPI as one stage, as 2 stages with the first active and as 4 with the second, polling rate
+125 and 1000 Hz, the `90 00` and `AB` queries and the echo work there. The rest, and every other model, is Experimental
+(see `.claude/rules/experimental-protocol.md`).
 Code: `src/devices/mice/` (`modern.rs` holds the per-PID table `MOUSE_MODELS`, `dpi_tables.rs` the sensor code
 tables) and the `Mouse*Command` types in `src/devices/hid_reports.rs`. CLI: `ssgg mouse status |
 dpi <value>... [--active <n>] --yes | poll-rate <hz> | color <name|hex> [--zone <n>] | info [--poll-rate]`.
@@ -284,13 +284,14 @@ than the Rival 3 Gen 2, brightness, sleep and dim timers. Not covered, other com
     middle, `--zone 3` the rear, each leaving the zones set before as they were (after the zone 1 write the middle
     looked magenta, which the owner took for the red and blue light mixing; rivalcfg names the zones top, middle and
     bottom). The white click wave stays, also with the lights off.
-  - Replug (5 s unplugged): the colour came back as the mouse's own rainbow effect and the polling rate as about 1000 Hz
-    (4902 per 5 s), but the DPI stayed. The single stage at 400 sent just before survived, and the DPI button no longer
-    changed the speed, so it had replaced the four stages set earlier. After the four stages were restored and the mouse
-    replugged again, all four came back. The owner reports that the mouse comes back on the stage last picked with the
-    button (2026-11-18; which stage that check used is not recorded). No save command was sent; whether the firmware
-    stores each DPI frame at once or later is unknown. The stages the mouse held before the test are lost: there is no
-    DPI read-back.
+  - Replug (5 s unplugged), right after `color red`, `dpi 400` and `poll-rate 125` (2026-11-18, 02:08 local, each
+    echoed `00`): the colour came back as the mouse's own rainbow effect, not red, and the polling rate as about
+    1000 Hz (4902 per 5 s), not 125, but the DPI stayed. The single stage at 400 sent just before survived, and the DPI
+    button no longer changed the speed, so it had replaced the four stages set earlier. After the four stages were
+    restored and the mouse replugged again, all four came back. The owner reports that the mouse comes back on the stage
+    last picked with the button (2026-11-18; which stage that check used is not recorded). No save command was sent;
+    whether the firmware stores each DPI frame at once or later is unknown. The stages the mouse held before the test
+    are lost: there is no DPI read-back.
   - Untested: 250 and 500 Hz, 3 or 5 stages, 2 stages with the second active, 4 stages with another active, sleep, a
     power cycle other than a replug.
 - GG's capture of this mouse (the USBPcap text attached to rivalcfg issue #249, 2025-07-29: GG opening the mouse on

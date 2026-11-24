@@ -178,8 +178,10 @@ status per command is in the rules file):
   stages with the first active and as 4 with the second active, poll rate 125 and 1000 Hz, the firmware and poll-rate
   queries, the echo. That mouse keeps its DPI stages across a replug without a save; colour and poll rate revert. Every
   other model untested.
-  Since 2026-11-24 (owner's decision) `ssgg mouse dpi` sends nothing without `--yes`, on every model, as the rules file
-  asks of persistent writes, and the editor's DPI form arms on the first click and has the `--yes` box.
+  Since 2026-11-24 (owner's decision) `ssgg mouse dpi` sends nothing without `--yes`, on every model, and the
+  editor's DPI form arms on the first click and has the `--yes` box. With `--yes` the other models still get the
+  single-stage `0x2D` frame, though no DPI write is confirmed on them (the rules file asks for a hardware-confirmed
+  family as well).
 - Headsets: Arctis Nova 7 protocol family (34 PIDs: Nova 7, Arctis 7+, Nova 4, Nova 5 / Nova 3 Wireless, Nova Pro)
   with sidetone, auto-off, mic volume, status via `ssgg headset`. No save `00 09` is ever sent, so settings do not
   stick on Gen 2 (`0x227E`, 2026-10-25: it falls back to the headset's saved level after a power cycle); instead

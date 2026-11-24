@@ -3,9 +3,9 @@
 //! Only the Modern family of the community rivalcfg project is covered (see [`modern`]). Prime and Prime+,
 //! the older Rival, Sensei and Kana families and the older wireless families use other command sets and are
 //! not implemented. Only the wired Rival 3 Gen 2 (`0x1870`) has been tested on hardware (owner, Linux, 2026-11-16
-//! to 18): colour on all zones and on one zone, DPI as one stage and as 2 or 4 stages, polling rate 125 and 1000 Hz,
-//! the firmware and polling-rate queries and the setting echo work. Every other model is untested; status per
-//! command in `.claude/rules/experimental-protocol.md`.
+//! to 18): colour on all zones and on one zone, DPI as one stage, as 2 stages with the first active and as 4 with the
+//! second, polling rate 125 and 1000 Hz, the firmware and polling-rate queries and the setting echo work. Every other
+//! model is untested; status per command in `.claude/rules/experimental-protocol.md`.
 
 pub mod dpi_tables;
 pub mod modern;

@@ -790,9 +790,10 @@ pub(crate) enum MouseAction {
     /// Show the battery level of a wireless model
     Status,
 
-    /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (range and step depend on the model, e.g. 100
-    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, 2 and 4 tested). Needs --yes: a wired Rival 3
-    /// Gen 2 keeps them after unplugging, in place of the stages it had, which cannot be read back first
+    /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (EXPERIMENTAL except on a wired Rival 3 Gen 2;
+    /// range and step depend on the model, e.g. 100 to 18000 in steps of 100; several stages: Rival 3 Gen 2 only,
+    /// tested with 2 stages, the first active, and 4, the second active). Needs --yes: a wired Rival 3 Gen 2 keeps
+    /// them after unplugging, in place of the stages it had, which cannot be read back first
     Dpi {
         /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which replaces any
         /// stages set before (seen on a wired Rival 3 Gen 2)
@@ -809,7 +810,8 @@ pub(crate) enum MouseAction {
         yes: bool,
     },
 
-    /// Set the USB polling rate of the mouse itself (not the OS-level `pollrate` command)
+    /// Set the USB polling rate of the mouse itself, not the OS-level `pollrate` command (EXPERIMENTAL except 125
+    /// and 1000 Hz on a wired Rival 3 Gen 2)
     PollRate {
         /// Rate in Hz: 125, 250, 500 or 1000
         hz: u16,
@@ -1521,7 +1523,8 @@ mod tests {
                 action: MouseAction::Color { ref color, zone: Some(3) }
             } if color == "00ff00"
         ));
-        assert!(Cli::try_parse_from(["ssgg", "mouse", "color", "red", "--zone", "-1"]).is_err());
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "color", "red", "--zone=-1"]).is_err());
+        assert!(Cli::try_parse_from(["ssgg", "mouse", "color", "red", "--zone", "256"]).is_err());
 
         assert_eq!(zone_index(1, 3).unwrap(), 0);
         assert_eq!(zone_index(3, 3).unwrap(), 2);
