@@ -168,7 +168,8 @@ and OpenRGB (GPL-2.0): take facts, write our own code and test vectors.
 - Pollrate rebind and persistence: Sarhan `src/pollrate.rs` unbinds and rebinds the SteelSeries `usbhid`
   interfaces so a changed `mousepoll`/`kbpoll` applies at once, and `--persistent` writes
   `/etc/modprobe.d/ssgg-usbhid.conf`. Ours only writes the parameter and saves to `config.toml`.
-Taken on the branch (all `[EXPERIMENTAL]`, none run on hardware):
+Taken on the branch (all `[EXPERIMENTAL]` and untested when taken; later hardware results are noted per item, the
+status per command is in the rules file):
 - Input remapper: feature `remap` (`src/input/`, `ssgg remap run|list`). Only key-to-key and key-to-combo, no
   macros/text/launch; escape chord LCtrl+RCtrl+LShift+RShift held 2 s. Never run against a real keyboard.
 - Mice, rivalcfg "Modern" family only (24 PIDs: Aerox 3/5/9, Prime Mini/Wireless, Rival 3 Gen 2, Rival 5): DPI, poll
@@ -176,16 +177,21 @@ Taken on the branch (all `[EXPERIMENTAL]`, none run on hardware):
 - Headsets: Arctis Nova 7 protocol family (34 PIDs: Nova 7, Arctis 7+, Nova 4, Nova 5 / Nova 3 Wireless, Nova Pro)
   with sidetone, auto-off, mic volume, status via `ssgg headset`. No save `00 09` is ever sent, so settings do not
   stick on Gen 2 (`0x227E`, 2026-10-25: it falls back to the headset's saved level after a power cycle); instead
-  `--persistent` keeps them in `[headset]` and the daemon re-applies them on power-on (2026-10-26).
-- OpenRGB / fork keyboard families: Apex 9 TKL/Mini (`0x40`, 513 bytes, no init), Gen 1 `0x3A` models (Apex 5,
-  Apex 5 2024, Apex 7 TKL, Apex Pro TKL, Apex Pro 2024) on the direct path, Apex M750 solid colour (slot-to-key map unknown).
+  `--persistent` keeps them in `[headset]` and the daemon re-applies them on power-on (2026-10-26). Sidetone, mic
+  volume, auto-off and status confirmed on the Nova 7 Gen 2 `0x227E` (owner, Linux, 2026-10-25).
+- OpenRGB / fork keyboard families: Apex 9 TKL/Mini (`0x40`, 513 bytes, no init when taken; since then the TKL gets
+  the `0x4B` init from firmware 1.19.7 (2026-10-25) and the Mini the 61-key Mini frame (2026-11-11)), Gen 1 `0x3A`
+  models (Apex 5, Apex 5 2024, Apex 7 TKL, Apex Pro TKL, Apex Pro 2024) on the direct path (Apex Pro 2024 `0x1640`
+  confirmed on hardware 2026-11-02; Apex 5 2024 `0x1650` frame shape user-reported, #339, 2026-11-15), Apex M750
+  solid colour (slot-to-key map unknown).
 
 Still open:
 - Other mice families (Prime/Prime+, Old, Rival 3, 310/TEN, wireless-old) and the rest of Sarhan's mouse table.
 - Other headset families from Sarhan's `models.rs` (Arctis 1/7/9, Pro Wireless, Nova Pro Wireless, 7+, Nova 3/5):
   its `with_save` appends the save sequence to every write; strip that before using the data.
-- ~~Firmware probe~~ done 2026-10-25: `ApexProTkl2023` polls `90 00` once on `0x1614`/`0x1634`/`0x1620` and uses the
-  Gen 3 init (and `0x40` on `0x1614`) from 1.19.7, as OpenRGB's `SendInitialization` does. Untested.
+- ~~Firmware probe~~ done 2026-10-25: `ApexProTkl2023` polls `90 00` once on `0x1614`/`0x1634` and uses the Gen 3
+  init (and `0x40` on `0x1614`) from 1.19.7, as OpenRGB's `SendInitialization` does. Untested. `0x1620` was probed
+  too until 2026-11-11, when it moved to the fixed 61-key Mini frame (no probe, no init).
 - ~~Apex 3 (`0x161A`)~~ done 2026-10-25 from GG's spec (10 zones, not tri-zone): class `Apex3`. Old Apex (`0x1202`,
   `0x1206`) read from the spec but not taken: GG switches it into driver mode around lighting (handoff R2).
 - Other headset families: 2026-10-25 the Arctis 7+, Nova 4, Nova 5 / Nova 3 Wireless and Nova Pro families were
@@ -200,14 +206,14 @@ Still open:
 
 ## P8. Hardware checks owed by the 2026-10-21 branch
 
-Nothing below has run on a device. Ask whoever owns the device; record device, firmware and date; promote a status
-only per `.claude/rules/experimental-protocol.md`.
+Nothing below had run on a device when it was listed; items marked done record their result. Ask whoever owns the
+device; record device, firmware and date; promote a status only per `.claude/rules/experimental-protocol.md`.
 
 - **[HW, outside]** Apex 3 TKL `0x1622` (#173/#257): `ssgg -d rgb color FF0000`, `rgb off`, `rgb brightness 50` with the
   new no-APPLY behaviour.
 - **[HW, outside]** #283 `0x1610`, #276 (`0x1858` `ssgg mouse`, `0x22A1` `ssgg headset`, `0x0616` `rgb color`),
   Apex 9 (`0x1634`, `0x1620`), Apex 5 / Apex 7 TKL / Apex Pro TKL (`0x161C`, `0x1618`, `0x1614`; Apex Pro
-  2024 `0x1640` done 2026-11-02, #318), Apex 5 2024 `0x1650` (#339: user-reported frame, replay ssgg's own), other Nova 7 PIDs (`0x227E` done 2026-10-25: status, sidetone, mic volume, auto-off work), other
+  2024 `0x1640` done 2026-11-02, #318: solid-colour and per-key `0x3A` frames, ISO-DE, fw 4.16.8, Linux), Apex 5 2024 `0x1650` (#339: user-reported frame, replay ssgg's own), other Nova 7 PIDs (`0x227E` done 2026-10-25: status, sidetone, mic volume, auto-off work), other
   Modern-family mice.
 - **[HW, Linux]** `ssgg remap run` on a real keyboard, including the escape chord and unplug behaviour.
 

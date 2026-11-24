@@ -10,11 +10,13 @@
       "Bash(cargo tree *)",
       "Bash(cargo audit *)",
       "Bash(rg *)",
-      "Bash(tshark *)",
-      "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
+      "Bash(tshark *)"
     ],
     "ask": [
       "Bash(git reset --hard *)",
+      "Bash(rg *--pre*)",
+      "Bash(tshark *-X*)",
+      "Bash(git fetch *--upl*)",
       "Bash(*ssgg* onboard write*)",
       "Bash(cargo run* onboard write*)",
       "Bash(*ssgg* onboard load*)",
@@ -39,6 +41,8 @@
       "Bash(cargo run* oled show*--onboard*)",
       "Bash(*ssgg* fuzz*)",
       "Bash(cargo run* fuzz*)",
+      "Bash(*ssgg* mouse dpi*)",
+      "Bash(cargo run* mouse dpi*)",
       "Bash(*cargo *--bin*discover_actuation*)",
       "Bash(*target/*/discover_actuation*)",
       "Bash(*cargo *--bin*verify_key_mapping*)",
@@ -72,6 +76,8 @@
       "PowerShell(cargo run* oled show*--onboard*)",
       "PowerShell(*ssgg* fuzz*)",
       "PowerShell(cargo run* fuzz*)",
+      "PowerShell(*ssgg* mouse dpi*)",
+      "PowerShell(cargo run* mouse dpi*)",
       "PowerShell(*cargo *--bin*discover_actuation*)",
       "PowerShell(*target*discover_actuation*)",
       "PowerShell(*cargo *--bin*verify_key_mapping*)",
@@ -82,10 +88,22 @@
       "PowerShell(*.\\verify_key_mapping*)"
     ],
     "deny": [
-      "Bash(git push --force *)",
-      "Bash(git push -f *)",
-      "PowerShell(git push --force *)",
-      "PowerShell(git push -f *)"
+      "Bash(git *push* --force*)",
+      "Bash(git *push* -f*)",
+      "Bash(git *push* +*)",
+      "Bash(git *push* -uf*)",
+      "Bash(git *push* -vf*)",
+      "Bash(git *push* -qf*)",
+      "Bash(git *push* --mi*)",
+      "Bash(git *push*=+*)",
+      "PowerShell(git *push* --force*)",
+      "PowerShell(git *push* -f*)",
+      "PowerShell(git *push* +*)",
+      "PowerShell(git *push* -uf*)",
+      "PowerShell(git *push* -vf*)",
+      "PowerShell(git *push* -qf*)",
+      "PowerShell(git *push* --mi*)",
+      "PowerShell(git *push*=+*)"
     ]
   },
   "hooks": {

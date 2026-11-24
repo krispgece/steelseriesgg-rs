@@ -181,18 +181,25 @@ builds on Windows but applies nothing there (the PulseAudio backend is Linux-onl
 - Skills: `ci-matrix` (full local CI), `gui-selftest` (editor selftest, source and minified), `hid-protocol` (auto-loads for `src/devices/`), `hw-capture`, `promote-protocol`, `dep-audit`, `fuzz-runner`, `benchmark-compare`.
 - Commands: `/new-device` (scaffold a device and register it), `/pr-check` (pre-PR go/no-go).
 - Review agents: `protocol-reviewer` (device diffs), `security-reviewer` (GameSense server), `gui-reviewer` (editor, `src/gui.rs`, `build.rs`), `dependency-auditor`, `docs-drift-auditor`, `re-verifier`, `release-reviewer`.
-- Hooks (`.claude/settings.json`, scripts in `.claude/hooks/`): edits to `Cargo.lock`, `CHANGELOG.md`,
-  `.release-please-manifest.json` and `tools/profile-gui/products.generated.js` are blocked; edits to `hid_reports.rs`,
-  `Cargo.toml` and the Apex 7 / Gen 3 profile and device-write files get a reminder (`remind.sh`), and so does
-  `git push` (run `ci-matrix` first). An edited `.rs` file is rustfmt'ed when rustfmt is on PATH, and one under `src/`
-  (not `src/bin/`) is flagged for `unwrap`/`expect` outside `#[cfg(test)]` items; a `Cargo.toml` that loses the exact
-  `hidapi` pin is flagged. In the background (`post-check.sh`), `src/devices/` edits run clippy, and editor edits and
-  edits to the Rust tables the editor reads run its selftest (without cargo no clippy; below Node 20.11 only the
-  `sync-products.mjs --check` drift check); failures come back as a message.
+- Hooks (`.claude/settings.json`, scripts in `.claude/hooks/`): edits to a `Cargo.lock` (in any repository) and to
+  `CHANGELOG.md`, `.release-please-manifest.json` and `tools/profile-gui/products.generated.js` are blocked; edits to
+  `hid_reports.rs`, `Cargo.toml` and the Apex 7 / Gen 3 profile and device-write files get a reminder (`remind.sh`),
+  and so does `git push` (run `ci-matrix` first). An edited `.rs` file is rustfmt'ed when rustfmt is on PATH, and one
+  under `src/` (not `src/bin/`) is flagged for `unwrap`/`expect` outside `#[cfg(test)]` items; a `Cargo.toml` that
+  loses the exact `hidapi` pin is flagged. In the background (`post-check.sh`), `src/devices/` edits run clippy, and
+  editor edits and edits to the Rust tables the editor reads run its selftest (without cargo no clippy; below Node
+  20.11 only the `sync-products.mjs --check` drift check); failures come back as a message. Apart from the
+  `Cargo.lock` block, the Edit/Write hooks act only on files of this project's checkouts (`checkout.sh`; a worktree
+  under `.claude/worktrees/` counts), so files of another repository edited from here are left alone.
 - Permissions: device-writing `ssgg` commands (on-board writes and loads, key mappings, region, meta key, actuation,
-  `oled show --onboard`, `fuzz`) and the `discover_actuation` / `verify_key_mapping` probes need approval, in the Bash
-  and the PowerShell tool. The rules match anywhere in a command, so one that only quotes such an invocation (an `rg`
-  for `ssgg keymap set`, a commit message) prompts too; search for the subcommand without the binary name.
+  `oled show --onboard`, `fuzz`, mouse DPI) and the `discover_actuation` / `verify_key_mapping` probes need approval,
+  in the Bash and the PowerShell tool; no other tool that runs commands is pre-allowed, and the allowed `rg`, `tshark`
+  and `git fetch` ask before an option that runs a program (`--pre`, `-X`, `--upload-pack`). The usual force-push
+  spellings (`--force`, `-f`, `-uf`/`-vf`/`-qf`, `--mirror` or a `+` refspec anywhere after `git ... push`) are
+  denied, though rarer bundles such as `-uvf` slip through. The rules match anywhere in a command, so one that only
+  quotes such an invocation (an `rg` for `ssgg keymap set`, a commit message) prompts too, and a git command whose
+  text has `push` followed by one of those flags (a commit message, `git log --grep`) is refused outright; search for
+  the subcommand without the binary name, and word such a message differently or commit with `-F <file>`.
 
 ---
 

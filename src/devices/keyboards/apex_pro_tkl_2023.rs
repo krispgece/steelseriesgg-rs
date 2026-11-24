@@ -81,7 +81,7 @@ pub(crate) const WIRELESS_FRAME: DirectFrame = DirectFrame {
     packet_id: CommandCode::Apex2023DirectWireless,
     ..GEN3_FRAME
 };
-/// [EXPERIMENTAL] Apex 9 TKL / Apex 9 Mini frame on pre-1.19.7 firmware: `0x40` in 513 bytes, no init.
+/// [EXPERIMENTAL] Apex 9 TKL frame on pre-1.19.7 firmware: `0x40` in 513 bytes, no init.
 pub(crate) const APEX_9_FRAME: DirectFrame = DirectFrame {
     packet_id: CommandCode::Apex2023Direct,
     length: APEX_9_PACKET_LENGTH,

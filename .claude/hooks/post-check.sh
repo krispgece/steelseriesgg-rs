@@ -14,9 +14,11 @@ else
 fi
 [ -n "$f" ] && [ -f "$f" ] || exit 0
 p=${f//\\//}
+. "${0%/*}/checkout.sh"
 
 if [ "$1" = pin ]; then
     case "$p" in */Cargo.toml) ;; *) exit 0 ;; esac
+    project_path "$f" || exit 0
     if grep -E '^hidapi *=' "$f" | grep -v '"=' >&2; then
         echo "hidapi is no longer pinned with an exact = version in $p (CLAUDE.md hard constraint 2); that needs explicit task justification." >&2
         exit 2
@@ -24,17 +26,7 @@ if [ "$1" = pin ]; then
     exit 0
 fi
 
-d=$(dirname "$f")
-if root=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null); then
-    # git prints the physical toplevel, which a path spelled through a symlink does not start with; --show-prefix
-    # gives the file's directory relative to it either way.
-    rel=$(git -C "$d" rev-parse --show-prefix 2>/dev/null)${p##*/}
-else
-    root=$CLAUDE_PROJECT_DIR
-    r=${root//\\//}
-    rel=${p#"$r"/}
-    [ -n "$r" ] && [ "$rel" != "$p" ] || exit 0
-fi
+project_path "$f" || exit 0
 case "$rel" in
     src/devices/mod.rs | src/devices/keyboards/models.rs | src/devices/keyboards/onboard.rs | \
         src/devices/keyboards/apex_7.rs | src/devices/keyboards/apex_7_profile.rs) checks='clippy selftest' ;;
@@ -42,8 +34,8 @@ case "$rel" in
     tools/profile-gui/*) checks=selftest ;;
     *) exit 0 ;;
 esac
-# Not in another repository that happens to have the same paths.
-[ -f "$root/Cargo.toml" ] && [ -f "$root/tools/profile-gui/sync-products.mjs" ] || exit 0
+# A checkout older than the editor has nothing to check.
+[ -f "$root/tools/profile-gui/sync-products.mjs" ] || exit 0
 cd "$root" || exit 0
 
 clippy() {
