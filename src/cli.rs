@@ -791,8 +791,8 @@ pub(crate) enum MouseAction {
     Status,
 
     /// Set the DPI, or up to 5 DPI stages for the mouse's DPI button (range and step depend on the model, e.g. 100
-    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, 2 and 4 tested). A wired Rival 3 Gen 2 keeps
-    /// them after unplugging, in place of the stages it had, which cannot be read back first
+    /// to 18000 in steps of 100; several stages: Rival 3 Gen 2 only, 2 and 4 tested). Needs --yes: a wired Rival 3
+    /// Gen 2 keeps them after unplugging, in place of the stages it had, which cannot be read back first
     Dpi {
         /// DPI value, or one value per stage (at most 5). One value is sent as a single stage, which replaces any
         /// stages set before (seen on a wired Rival 3 Gen 2)
@@ -802,6 +802,11 @@ pub(crate) enum MouseAction {
         /// Stage the mouse starts on, 1-based
         #[arg(long, value_name = "N", default_value_t = 1)]
         active: u8,
+
+        /// Confirm the change: the mouse stores it (a wired Rival 3 Gen 2 keeps it after unplugging; other models
+        /// untested), and the stages it replaces cannot be read back first
+        #[arg(long)]
+        yes: bool,
     },
 
     /// Set the USB polling rate of the mouse itself (not the OS-level `pollrate` command)
@@ -1461,7 +1466,14 @@ mod tests {
         assert!(matches!(
             parsed.command,
             Commands::Mouse {
-                action: MouseAction::Dpi { ref values, active: 1 }
+                action: MouseAction::Dpi { ref values, active: 1, yes: false }
+            } if values == &[800]
+        ));
+        let parsed = Cli::try_parse_from(["ssgg", "mouse", "dpi", "--yes", "800"]).unwrap();
+        assert!(matches!(
+            parsed.command,
+            Commands::Mouse {
+                action: MouseAction::Dpi { ref values, active: 1, yes: true }
             } if values == &[800]
         ));
         assert!(Cli::try_parse_from(["ssgg", "mouse", "save"]).is_err());
@@ -1474,7 +1486,7 @@ mod tests {
         assert!(matches!(
             parsed.command,
             Commands::Mouse {
-                action: MouseAction::Dpi { ref values, active: 2 }
+                action: MouseAction::Dpi { ref values, active: 2, .. }
             } if values == &[200, 3200]
         ));
         assert!(Cli::try_parse_from(["ssgg", "mouse", "dpi", "400", "800", "1600", "3200", "6400"]).is_ok());

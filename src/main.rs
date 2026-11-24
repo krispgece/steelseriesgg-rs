@@ -475,7 +475,22 @@ fn save_headset_setting(what: &str, update: impl FnOnce(&mut Config)) -> Result<
     Ok(())
 }
 
+/// A DPI change is stored on the mouse (a wired Rival 3 Gen 2 keeps it after unplugging, and the stages it replaces
+/// cannot be read back first), so it is sent only with `--yes`; checked before any mouse is looked up.
+fn require_dpi_yes(action: &MouseAction) -> Result<()> {
+    match action {
+        MouseAction::Dpi { yes: false, .. } => Err(Error::InvalidConfig(
+            "a DPI change is stored on the mouse: a wired Rival 3 Gen 2 keeps it after unplugging, in place of the \
+             stages it had, which cannot be read back first (other models untested). Nothing was sent; pass --yes to \
+             send it"
+                .to_string(),
+        )),
+        _ => Ok(()),
+    }
+}
+
 fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
+    require_dpi_yes(&action)?;
     let mouse_info = manager
         .first_device_of_type(DeviceType::Mouse)
         .ok_or_else(|| Error::Other("No supported mouse found".to_string()))?;
@@ -498,7 +513,7 @@ fn cmd_mouse(manager: &DeviceManager, action: MouseAction) -> Result<()> {
             Some(percent) => println!("Battery: {}%", percent),
             None => println!("Battery: unknown or not a wireless model"),
         },
-        MouseAction::Dpi { values, active } => match values.as_slice() {
+        MouseAction::Dpi { values, active, .. } => match values.as_slice() {
             [value] if active == 1 => {
                 mouse.set_dpi(*value)?;
                 println!("DPI request sent ({}).", value);
@@ -1314,6 +1329,20 @@ async fn cmd_sonar(action: SonarAction) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mouse_dpi_change_is_refused_without_yes() {
+        let dpi = |yes| MouseAction::Dpi {
+            values: vec![400, 800],
+            active: 1,
+            yes,
+        };
+        let err = require_dpi_yes(&dpi(false)).unwrap_err().to_string();
+        assert!(err.contains("pass --yes") && err.contains("Nothing was sent"), "{err}");
+        assert!(require_dpi_yes(&dpi(true)).is_ok());
+        assert!(require_dpi_yes(&MouseAction::PollRate { hz: 125 }).is_ok());
+        assert!(require_dpi_yes(&MouseAction::Status).is_ok());
+    }
 
     #[test]
     fn mouse_acknowledgements_are_summarised_per_frame() {

@@ -47,7 +47,8 @@ systemctl --user enable --now ssgg.service
 ### Mice (`ssgg mouse`)
 - Rival 3 Gen 2 (wired, `0x1870`), tested on hardware (Linux, 2026-11-17/18; Windows untested): DPI, 2 or 4 DPI
   stages, poll rate (125 and 1000 Hz), colour on all zones or one, firmware version. `ssgg` sends no save command,
-  but this mouse keeps its DPI stages after unplugging; colour and poll rate return to the mouse's own.
+  but this mouse keeps its DPI stages after unplugging, so `ssgg mouse dpi` needs `--yes`; colour and poll rate
+  return to the mouse's own.
 - Experimental, never run on hardware (community-fork protocol data): Aerox 3 / 5 / 9 (incl. wireless), Prime Mini /
   Prime Wireless, Rival 5: DPI, poll rate, colour, battery.
 

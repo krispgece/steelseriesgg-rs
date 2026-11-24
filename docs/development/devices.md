@@ -196,7 +196,7 @@ queries and the echo work there. The rest, and every other model, is Experimenta
 `.claude/rules/experimental-protocol.md`).
 Code: `src/devices/mice/` (`modern.rs` holds the per-PID table `MOUSE_MODELS`, `dpi_tables.rs` the sensor code
 tables) and the `Mouse*Command` types in `src/devices/hid_reports.rs`. CLI: `ssgg mouse status |
-dpi <value>... [--active <n>] | poll-rate <hz> | color <name|hex> [--zone <n>] | info [--poll-rate]`.
+dpi <value>... [--active <n>] --yes | poll-rate <hz> | color <name|hex> [--zone <n>] | info [--poll-rate]`.
 
 Supported (24 PIDs): Aerox 3 `0x1836`; Aerox 3 Wireless `0x1838` (2.4 GHz), `0x183A`, `0x1878`, `0x187A`;
 Aerox 5 `0x1850`; Aerox 5 Wireless `0x1852`, `0x1854`, `0x185C`, `0x185E`, `0x1860`, `0x1862`; Aerox 9 Wireless
@@ -223,9 +223,9 @@ scope belongs to this family in the fork; none was dropped.
   rivalcfg's format replaces any stages set before; on the Rival 3 Gen 2 it did (below).
 - DPI stages (added 2026-11-16; 2 stages with the first active and 4 with the second confirmed, below), Rival 3 Gen 2
   only: `00 34 <count> <active, 0-based> x1 y1 .. xn yn`, 1 to 5 stages for the DPI button, unpadded (`ssgg mouse dpi
-  800 1600 --active 2`; `--active` is 1-based, so this sends `01`), after rivalcfg master's `multidpi_range_choice_xy`
-  handler and its test vector `34 04 00 04 04 08 08 12 12 24 29`; one stage is the single-DPI frame byte for byte. Every
-  other model refuses it (no verified multi-stage frame).
+  800 1600 --active 2 --yes`; `--active` is 1-based, so this sends `01`), after rivalcfg master's
+  `multidpi_range_choice_xy` handler and its test vector `34 04 00 04 04 08 08 12 12 24 29`; one stage is the single-DPI
+  frame byte for byte. Every other model refuses it (no verified multi-stage frame).
 - Polling rate: `00 2B <code>`; 125/250/500/1000 Hz is `04 03 02 01` on wired-only models and Rival 5 / Prime
   Mini, `03 02 01 00` on the wireless models.
 - Colour: `00 21 <selector> ... <r g b>` once per LED zone. Aerox 3/5 and Rival 3 Gen 2 (3 zones): selector is a
@@ -248,7 +248,8 @@ scope belongs to this family in the fork; none was dropped.
   opcode. A read or write failure ends `ssgg mouse info` with an error.
 - Never implemented: the save command `11 00` (writes to the mouse's on-board memory). `ssgg` sends no save, yet the
   Rival 3 Gen 2 keeps its DPI stages across a replug, not its colour or polling rate (below); other models untested.
-  There is no DPI read-back, so a DPI command overwrites stages that cannot be read first.
+  There is no DPI read-back, so a DPI command overwrites stages that cannot be read first; `ssgg mouse dpi` therefore
+  sends nothing without `--yes` (since 2026-11-24).
 
 Skipped on purpose: reactive and rainbow effects, button mapping, multi-stage sensitivity presets on models other
 than the Rival 3 Gen 2, brightness, sleep and dim timers. Not covered, other command sets: Prime and Prime+
